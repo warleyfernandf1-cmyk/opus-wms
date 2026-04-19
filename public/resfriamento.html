@@ -16,21 +16,28 @@
       border-radius:8px; margin-bottom:16px; font-size:.8rem; }
     .sessao-tag { background:var(--accent); color:#fff; padding:2px 8px; border-radius:4px;
       font-size:.75rem; font-weight:600; white-space:nowrap; }
-    .bocas-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; }
+
+    /* Grade de bocas — wrap automático */
+    .bocas-grid { display:flex; flex-wrap:wrap; gap:8px; }
     .boca-card { border:1px solid var(--border); border-radius:8px; padding:10px 8px;
-      min-height:90px; display:flex; flex-direction:column; gap:4px;
-      background:var(--surface2); cursor:default; transition:.15s; }
+      width:calc((100% - 40px) / 6); min-width:120px; min-height:90px;
+      display:flex; flex-direction:column; gap:4px;
+      background:var(--surface2); cursor:default; transition:.15s; box-sizing:border-box; }
     .boca-card.ocupada { background:var(--surface); border-color:#22c55e; cursor:pointer; }
     .boca-card.ocupada:hover { border-color:#4ade80; background:rgba(34,197,94,.06); }
-    .boca-card.selecionada { border-color:var(--accent); border-width:2px;
-      background:rgba(99,102,241,.08); }
+    .boca-card.selecionada { border-color:var(--accent); border-width:2px; background:rgba(99,102,241,.08); }
+    .boca-card.com-temp { border-color:#6366f1; }
     .boca-num { font-size:.65rem; color:var(--text-muted); font-weight:600;
       text-transform:uppercase; letter-spacing:.05em; }
     .boca-pallet { font-size:.85rem; font-weight:600; color:var(--text); }
     .boca-var { font-size:.7rem; color:var(--text-muted); }
     .boca-temp { font-size:.7rem; padding:2px 6px; border-radius:4px; width:fit-content;
       margin-top:auto; background:rgba(34,197,94,.15); color:#22c55e; font-weight:600; }
+    .boca-temp-saida { font-size:.7rem; padding:2px 6px; border-radius:4px; width:fit-content;
+      background:rgba(99,102,241,.15); color:var(--accent); font-weight:600; }
     .boca-vazia { font-size:.7rem; color:var(--text-muted); opacity:.5; margin:auto 0; }
+
+    /* Painel de detalhe */
     .detalhe-panel { display:none; flex-direction:column; gap:14px; }
     .detalhe-panel.ativo { display:flex; }
     .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -39,6 +46,21 @@
     .info-value { font-size:.85rem; font-weight:600; color:var(--text); }
     .temp-badge { display:inline-flex; align-items:center; padding:3px 8px; border-radius:4px;
       font-size:.75rem; font-weight:600; background:rgba(245,158,11,.15); color:#f59e0b; }
+    .divider { height:1px; background:var(--border); }
+    .operador-info { font-size:.72rem; color:var(--text-muted); }
+
+    /* Botão concluir sessão */
+    .concluir-bar { display:flex; align-items:center; justify-content:space-between;
+      padding:10px 0 0; border-top:1px solid var(--border); margin-top:8px; }
+    .concluir-info { font-size:.78rem; color:var(--text-muted); }
+    .concluir-info span { color:var(--accent); font-weight:600; }
+    .btn-concluir { padding:8px 18px; border-radius:8px; border:none; font-size:.85rem;
+      font-weight:600; cursor:pointer; transition:.15s; }
+    .btn-concluir:disabled { background:var(--surface2); color:var(--text-muted); cursor:not-allowed; }
+    .btn-concluir:not(:disabled) { background:#22c55e; color:#fff; }
+    .btn-concluir:not(:disabled):hover { background:#16a34a; }
+
+    /* Tabela aguardando */
     .aw-table { width:100%; border-collapse:collapse; font-size:.82rem; }
     .aw-table th { text-align:left; font-size:.65rem; font-weight:600; color:var(--text-muted);
       text-transform:uppercase; letter-spacing:.05em; padding:6px 10px;
@@ -50,8 +72,6 @@
       border-radius:4px; font-size:.7rem; font-weight:600; }
     .badge-frutibras { background:rgba(99,102,241,.15); color:var(--accent); padding:2px 6px;
       border-radius:4px; font-size:.7rem; font-weight:600; }
-    .divider { height:1px; background:var(--border); }
-    .operador-info { font-size:.72rem; color:var(--text-muted); }
   </style>
 </head>
 <body>
@@ -102,18 +122,25 @@
       <span id="sessao-info" style="color:var(--text-muted)"></span>
     </div>
 
-    <!-- Grade de bocas -->
+    <!-- Grade de bocas + concluir sessão -->
     <div class="card" id="card-bocas">
       <div class="card-title" id="bocas-titulo">Túnel 01 — Bocas</div>
       <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">
-        Clique em uma boca ocupada para registrar a temperatura de polpa e dar saída do túnel.
+        Clique em uma boca ocupada para registrar a temperatura de polpa. Cada pallet aparece em seu próprio card.
       </p>
       <div class="bocas-grid" id="bocas-grid">
         <span style="color:var(--text-muted);font-size:.82rem">Carregando...</span>
       </div>
+      <!-- Barra de concluir sessão -->
+      <div class="concluir-bar" id="concluir-bar" style="display:none">
+        <div class="concluir-info" id="concluir-info">—</div>
+        <button class="btn-concluir" id="btn-concluir-sessao" disabled onclick="concluirSessao()">
+          ✓ Concluir Sessão
+        </button>
+      </div>
     </div>
 
-    <!-- Painel de detalhe da boca -->
+    <!-- Painel de detalhe do pallet -->
     <div class="card detalhe-panel" id="detalhe-panel">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div>
@@ -144,12 +171,12 @@
       </div>
       <div class="operador-info" id="d-operador">—</div>
       <div style="display:flex;gap:8px;margin-top:4px">
-        <button class="btn btn-primary" id="btn-confirmar-saida">✓ Confirmar saída do túnel</button>
+        <button class="btn btn-primary" id="btn-salvar-temp">✓ Salvar temperatura</button>
         <button class="btn btn-ghost" onclick="fecharDetalhe()">Cancelar</button>
       </div>
     </div>
 
-    <!--- Pallets aguardando armazenamento --->
+    <!-- Pallets aguardando armazenamento -->
     <div class="card" id="card-aguardando">
       <div class="card-title">Pallets aguardando armazenamento</div>
       <div id="aw-container">
