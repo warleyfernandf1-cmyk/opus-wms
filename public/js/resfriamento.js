@@ -1,29 +1,25 @@
 /**
  * resfriamento.js
- * 
+ *
  * Fluxo:
  *  1. Operador seleciona o túnel (01 ou 02)
- *  2. Grade de 12 bocas é renderizada — bocas ocupadas mostram o pallet
+ *  2. Grade de 12 bocas é renderizada com os pallets em recepcao/resfriamento
  *  3. Clicar numa boca ocupada abre o painel de detalhe
  *  4. Operador informa temperatura de polpa + observação e confirma saída
- *  5. Pallet é movido para "aguardando armazenamento" (fase armazenamento, sem posição)
+ *  5. Pallet move para fase armazenamento (aguardando alocação em câmara)
  *
  * Label de sessão: "T01 - 1ª Remessa - S16"
- *  - Túnel vem da sessão ativa
- *  - Remessa = total de sessões do dia naquele túnel (incluindo a ativa)
- *  - Semana ISO calculada no frontend
  */
 
 /* ─── estado global ─────────────────────────────────────────── */
 let tunelAtivo = '01';
-let bocaSelecionada = null;   // número da boca (int)
-let palletSelecionado = null; // objeto do pallet
-let dadosTuneis = {};         // resposta de GET /resfriamento/tuneis
-let sessaoAtiva = null;       // objeto da sessão ativa do túnel corrente
+let bocaSelecionada = null;
+let palletSelecionado = null;
+let dadosTuneis = {};
+let sessaoAtiva = null;
 
 /* ─── helpers ───────────────────────────────────────────────── */
 
-/** Semana ISO do ano para uma data */
 function semanaISO(date = new Date()) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -31,34 +27,15 @@ function semanaISO(date = new Date()) {
   return Math.ceil((((d - inicio) / 86400000) + 1) / 7);
 }
 
-/** Ordinal em português: 1ª, 2ª, 3ª … */
 function ordinal(n) {
   return `${n}ª`;
 }
 
-/**
- * Monta o label legível da sessão.
- * @param {string} tunel - "01" ou "02"
- * @param {number} remessa - contagem de sessões do dia naquele túnel
- */
 function labelSessao(tunel, remessa) {
-  const semana = semanaISO();
-  return `T${tunel} - ${ordinal(remessa)} Remessa - S${semana}`;
+  return `T${tunel} - ${ordinal(remessa)} Remessa - S${semanaISO()}`;
 }
 
-/** Busca sessões do dia para um túnel e retorna a contagem (remessa) */
-async function calcularRemessa(tunel) {
-  try {
-    // Busca todas as sessões do túnel; filtramos pelo dia no frontend
-    const sessoes = await api.get(`/resfriamento/sessoes?tunel=${tunel}`);
-    const hoje = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
-    return sessoes.filter(s => s.iniciado_em && s.iniciado_em.startsWith(hoje)).length;
-  } catch {
-    return 1; // fallback seguro
-  }
-}
-
-/* ─── renderização ──────────────────────────────────────────── */
+/* ─── renderização das bocas ────────────────────────────────── */
 
 function renderBocas() {
   const grid = document.getElementById('bocas-grid');
@@ -67,7 +44,7 @@ function renderBocas() {
   grid.innerHTML = Array.from({ length: 12 }, (_, i) => {
     const b = i + 1;
     const pallets = bocas[String(b)] || [];
-    const p = pallets[0]; // um pallet por boca
+    const p = pallets[0];
     const selecionada = bocaSelecionada === b;
 
     if (p) {
@@ -86,6 +63,8 @@ function renderBocas() {
   }).join('');
 }
 
+/* ─── barra de sessão ───────────────────────────────────────── */
+
 async function renderSessaoBar() {
   const bar = document.getElementById('sessao-bar');
   const labelEl = document.getElementById('sessao-label');
@@ -96,28 +75,30 @@ async function renderSessaoBar() {
     return;
   }
 
-  const remessa = await calcularRemessa(tunelAtivo);
-  const label = labelSessao(tunelAtivo, remessa);
+  let remessa = 1;
+  try {
+    const todasSessoes = await api.get(`/resfriamento/sessoes?tunel=${tunelAtivo}`);
+    const hoje = new Date().toISOString().slice(0, 10);
+    remessa = todasSessoes.filter(s => s.iniciado_em && s.iniciado_em.startsWith(hoje)).length;
+  } catch (_) { /* mantém remessa = 1 */ }
 
   const criada = sessaoAtiva.iniciado_em
     ? new Date(sessaoAtiva.iniciado_em).toLocaleString('pt-BR')
     : '—';
 
-  // Conta pallets em resfriamento neste túnel
   const bocas = dadosTuneis[tunelAtivo] || {};
-  const totalPallets = Object.values(bocas)
-    .flat()
-    .filter(p => p.fase === 'resfriamento').length;
+  const totalPallets = Object.values(bocas).flat().filter(p => p.fase === 'resfriamento').length;
 
-  labelEl.textContent = label;
+  labelEl.textContent = labelSessao(tunelAtivo, remessa);
   infoEl.textContent = `Criada em ${criada} · Pallets na sessão: ${totalPallets}`;
   bar.style.display = 'flex';
 }
 
+/* ─── tabela aguardando armazenamento ───────────────────────── */
+
 async function renderAguardando() {
   const container = document.getElementById('aw-container');
   try {
-    // Pallets em fase armazenamento sem posição definida = aguardando alocação
     const pallets = await api.get('/armazenamento/aguardando');
     if (!pallets || pallets.length === 0) {
       container.innerHTML = '<span style="color:var(--text-muted);font-size:.82rem">Nenhum pallet aguardando armazenamento.</span>';
@@ -149,9 +130,7 @@ async function renderAguardando() {
               <td>${p.temp_entrada != null ? p.temp_entrada + '°C' : '—'}</td>
               <td>${p.temp_saida != null ? p.temp_saida + '°C' : '—'}</td>
               <td>${p.updated_at ? new Date(p.updated_at).toLocaleString('pt-BR') : '—'}</td>
-              <td>
-                <a href="armazenamento.html" class="btn btn-primary btn-sm">→ Armazenar</a>
-              </td>
+              <td><a href="armazenamento.html" class="btn btn-primary btn-sm">→ Armazenar</a></td>
             </tr>
           `).join('')}
         </tbody>
@@ -167,21 +146,22 @@ async function selectTunel(tunel) {
   tunelAtivo = tunel;
   bocaSelecionada = null;
   palletSelecionado = null;
-  fecharDetalhe();
+  fecharDetalhe(false);
 
   document.getElementById('tab-t01').classList.toggle('active', tunel === '01');
   document.getElementById('tab-t02').classList.toggle('active', tunel === '02');
   document.getElementById('bocas-titulo').textContent = `Túnel ${tunel} — Bocas`;
 
-  // Sessão ativa do túnel selecionado
+  // Renderiza bocas imediatamente — não espera a sessão
+  renderBocas();
+
+  // Busca sessão ativa sem bloquear as bocas
+  sessaoAtiva = null;
   try {
     const sessoes = await api.get(`/resfriamento/sessoes?tunel=${tunel}&status=ativa`);
-    sessaoAtiva = sessoes && sessoes.length > 0 ? sessoes[0] : null;
-  } catch {
-    sessaoAtiva = null;
-  }
+    sessaoAtiva = Array.isArray(sessoes) && sessoes.length > 0 ? sessoes[0] : null;
+  } catch (_) { /* sem sessão ativa, barra fica oculta */ }
 
-  renderBocas();
   await renderSessaoBar();
 }
 
@@ -218,11 +198,11 @@ function abrirDetalhe(boca) {
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-function fecharDetalhe() {
+function fecharDetalhe(rerender = true) {
   bocaSelecionada = null;
   palletSelecionado = null;
   document.getElementById('detalhe-panel').classList.remove('ativo');
-  renderBocas();
+  if (rerender) renderBocas();
 }
 
 /* ─── confirmar saída ───────────────────────────────────────── */
@@ -239,14 +219,14 @@ document.getElementById('btn-confirmar-saida').addEventListener('click', async (
   const obs = document.getElementById('input-obs').value.trim();
 
   try {
-    await api.post(`/resfriamento/saida-pallet`, {
+    await api.post('/resfriamento/saida-pallet', {
       pallet_id: palletSelecionado.id,
-      sessao_id: sessaoAtiva?.id || null,
+      sessao_id: sessaoAtiva ? sessaoAtiva.id : null,
       temp_polpa: tempPolpa,
       observacao: obs || null,
     });
     showToast(`Pallet ${palletSelecionado.id} saiu do túnel com sucesso.`, 'success');
-    fecharDetalhe();
+    fecharDetalhe(false);
     await init();
   } catch (e) {
     showToast(e.message, 'error');
@@ -256,14 +236,21 @@ document.getElementById('btn-confirmar-saida').addEventListener('click', async (
 /* ─── inicialização ─────────────────────────────────────────── */
 
 async function init() {
+  // 1. Carrega dados dos túneis
   try {
     dadosTuneis = await api.get('/resfriamento/tuneis');
   } catch (e) {
     showToast('Erro ao carregar túneis: ' + e.message, 'error');
     dadosTuneis = {};
   }
+
+  // 2. Renderiza bocas imediatamente com dados disponíveis
   renderBocas();
+
+  // 3. Carrega sessão ativa e atualiza barra (não bloqueia bocas)
   await selectTunel(tunelAtivo);
+
+  // 4. Carrega tabela de aguardando armazenamento
   await renderAguardando();
 }
 
