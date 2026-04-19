@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Resfriamento — Opus WMS</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<aside id="sidebar">
+  <div class="logo">Opus WMS <span>Warehouse Management</span></div>
+  <nav>
+    <div class="section-label">Operacional</div>
+    <a href="index.html"><span class="icon">⊞</span> Dashboard</a>
+    <a href="recepcao.html"><span class="icon">↓</span> Recepção</a>
+    <a href="resfriamento.html"><span class="icon">❄</span> Resfriamento</a>
+    <a href="armazenamento.html"><span class="icon">⬛</span> Armazenamento</a>
+    <a href="remontes.html"><span class="icon">⇄</span> Remontes</a>
+    <a href="picking.html"><span class="icon">✂</span> Picking</a>
+    <a href="expedicao.html"><span class="icon">↑</span> Expedição</a>
+    <a href="inventario.html"><span class="icon">☑</span> Inventário</a>
+    <div class="section-label">Consulta</div>
+    <a href="camaras.html"><span class="icon">▦</span> Câmaras</a>
+    <a href="tuneis.html"><span class="icon">≡</span> Túneis</a>
+    <a href="relatorios.html"><span class="icon">📄</span> Relatórios</a>
+    <a href="historico.html"><span class="icon">🕓</span> Histórico</a>
+  </nav>
+</aside>
+<div id="main">
+  <header><h1>Resfriamento</h1><span class="badge">Túneis</span></header>
+  <div class="content">
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px" id="tuneis-container">
+      <div class="card" id="tunel-01">
+        <div class="flex justify-between items-center" style="margin-bottom:12px">
+          <div class="card-title" style="margin:0">Túnel 01</div>
+          <div id="acao-t01"></div>
+        </div>
+        <div id="bocas-t01">Carregando...</div>
+      </div>
+      <div class="card" id="tunel-02">
+        <div class="flex justify-between items-center" style="margin-bottom:12px">
+          <div class="card-title" style="margin:0">Túnel 02</div>
+          <div id="acao-t02"></div>
+        </div>
+        <div id="bocas-t02">Carregando...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Finalizar Sessão</div>
+      <div class="form-grid" style="max-width:400px">
+        <div class="field"><label>Sessão ID</label><input id="sessao-id" placeholder="UUID da sessão ativa"></div>
+        <div class="field"><label>Temp. Saída (°C)</label><input id="temp-saida" type="number" step="0.1"></div>
+      </div>
+      <div class="mt-4">
+        <button class="btn btn-primary" id="btn-finalizar">❄ Finalizar Sessão + Gerar OA</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script src="js/resfriamento.js"></script>
+</body>
+</html>

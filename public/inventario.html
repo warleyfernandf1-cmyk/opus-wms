@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Inventário — Opus WMS</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<aside id="sidebar">
+  <div class="logo">Opus WMS <span>Warehouse Management</span></div>
+  <nav>
+    <div class="section-label">Operacional</div>
+    <a href="index.html"><span class="icon">⊞</span> Dashboard</a>
+    <a href="recepcao.html"><span class="icon">↓</span> Recepção</a>
+    <a href="resfriamento.html"><span class="icon">❄</span> Resfriamento</a>
+    <a href="armazenamento.html"><span class="icon">⬛</span> Armazenamento</a>
+    <a href="remontes.html"><span class="icon">⇄</span> Remontes</a>
+    <a href="picking.html"><span class="icon">✂</span> Picking</a>
+    <a href="expedicao.html"><span class="icon">↑</span> Expedição</a>
+    <a href="inventario.html"><span class="icon">☑</span> Inventário</a>
+    <div class="section-label">Consulta</div>
+    <a href="camaras.html"><span class="icon">▦</span> Câmaras</a>
+    <a href="tuneis.html"><span class="icon">≡</span> Túneis</a>
+    <a href="relatorios.html"><span class="icon">📄</span> Relatórios</a>
+    <a href="historico.html"><span class="icon">🕓</span> Histórico</a>
+  </nav>
+</aside>
+<div id="main">
+  <header><h1>Inventário</h1><span class="badge">Acuracidade</span></header>
+  <div class="content">
+
+    <div class="toolbar">
+      <button class="btn btn-primary" id="btn-iniciar">☑ Iniciar Novo Inventário</button>
+      <button class="btn btn-ghost btn-sm" id="btn-refresh">↻ Atualizar</button>
+    </div>
+
+    <div class="card" id="inv-ativo" style="display:none">
+      <div class="card-title">Inventário em Andamento</div>
+      <div id="inv-id-display" class="text-sm text-muted" style="margin-bottom:12px"></div>
+      <div class="form-grid" style="max-width:400px;margin-bottom:14px">
+        <div class="field"><label>ID do Pallet</label><input id="reg-pallet"></div>
+        <div class="field"><label>Qtd Contada</label><input id="reg-qtd" type="number"></div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn btn-primary btn-sm" id="btn-registrar-item">Registrar</button>
+        <button class="btn btn-success btn-sm" id="btn-finalizar">✓ Finalizar Inventário</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Histórico de Inventários</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Status</th><th>Acuracidade</th><th>Iniciado em</th><th>Finalizado em</th></tr>
+          </thead>
+          <tbody id="tbody-inventarios"><tr><td colspan="5" class="text-muted">Carregando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script src="js/inventario.js"></script>
+</body>
+</html>

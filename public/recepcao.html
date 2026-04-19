@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recepção — Opus WMS</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<aside id="sidebar">
+  <div class="logo">Opus WMS <span>Warehouse Management</span></div>
+  <nav>
+    <div class="section-label">Operacional</div>
+    <a href="index.html"><span class="icon">⊞</span> Dashboard</a>
+    <a href="recepcao.html"><span class="icon">↓</span> Recepção</a>
+    <a href="resfriamento.html"><span class="icon">❄</span> Resfriamento</a>
+    <a href="armazenamento.html"><span class="icon">⬛</span> Armazenamento</a>
+    <a href="remontes.html"><span class="icon">⇄</span> Remontes</a>
+    <a href="picking.html"><span class="icon">✂</span> Picking</a>
+    <a href="expedicao.html"><span class="icon">↑</span> Expedição</a>
+    <a href="inventario.html"><span class="icon">☑</span> Inventário</a>
+    <div class="section-label">Consulta</div>
+    <a href="camaras.html"><span class="icon">▦</span> Câmaras</a>
+    <a href="tuneis.html"><span class="icon">≡</span> Túneis</a>
+    <a href="relatorios.html"><span class="icon">📄</span> Relatórios</a>
+    <a href="historico.html"><span class="icon">🕓</span> Histórico</a>
+  </nav>
+</aside>
+<div id="main">
+  <header>
+    <h1>Recepção</h1>
+    <span class="badge">Entrada de Pallets</span>
+  </header>
+  <div class="content">
+
+    <div class="card">
+      <div class="card-title">Registrar Pallet</div>
+      <form id="form-recepcao" class="form-grid">
+        <div class="field"><label>Nº Pallet</label><input name="nro_pallet" required></div>
+        <div class="field"><label>Qtd Caixas</label><input name="qtd_caixas" type="number" required></div>
+        <div class="field"><label>Data Embalamento</label><input name="data_embalamento" type="date" required></div>
+        <div class="field"><label>Variedade</label><input name="variedade" required></div>
+        <div class="field"><label>Classificação</label><input name="classificacao" required></div>
+        <div class="field"><label>Safra</label><input name="safra" required></div>
+        <div class="field"><label>Embalagem</label><input name="embalagem" required></div>
+        <div class="field"><label>Rótulo</label><input name="rotulo" required></div>
+        <div class="field"><label>Produtor</label><input name="produtor" required></div>
+        <div class="field"><label>Caixa</label><input name="caixa" required></div>
+        <div class="field"><label>Peso (kg)</label><input name="peso" type="number" step="0.01" required></div>
+        <div class="field"><label>Área</label><input name="area" required></div>
+        <div class="field"><label>Controle</label><input name="controle" required></div>
+        <div class="field"><label>Mercado</label><input name="mercado" required></div>
+        <div class="field"><label>Temp. Entrada (°C)</label><input name="temp_entrada" type="number" step="0.1" required></div>
+        <div class="field"><label>Túnel</label>
+          <select name="tunel" required>
+            <option value="01">Túnel 01</option>
+            <option value="02">Túnel 02</option>
+          </select>
+        </div>
+        <div class="field"><label>Boca (1-12)</label><input name="boca" type="number" min="1" max="12" required></div>
+      </form>
+      <div class="mt-4">
+        <button class="btn btn-primary" id="btn-registrar">↓ Registrar Pallet</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="flex justify-between items-center" style="margin-bottom:12px">
+        <div class="card-title" style="margin:0">Pallets em Recepção</div>
+        <button class="btn btn-ghost btn-sm" id="btn-refresh">↻ Atualizar</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Variedade</th><th>Qtd Cx</th><th>Produtor</th>
+              <th>Túnel</th><th>Boca</th><th>Temp. Ent.</th><th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-recepcao"><tr><td colspan="8" class="text-muted">Carregando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script src="js/recepcao.js"></script>
+</body>
+</html>

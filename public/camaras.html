@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Câmaras — Opus WMS</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<aside id="sidebar">
+  <div class="logo">Opus WMS <span>Warehouse Management</span></div>
+  <nav>
+    <div class="section-label">Operacional</div>
+    <a href="index.html"><span class="icon">⊞</span> Dashboard</a>
+    <a href="recepcao.html"><span class="icon">↓</span> Recepção</a>
+    <a href="resfriamento.html"><span class="icon">❄</span> Resfriamento</a>
+    <a href="armazenamento.html"><span class="icon">⬛</span> Armazenamento</a>
+    <a href="remontes.html"><span class="icon">⇄</span> Remontes</a>
+    <a href="picking.html"><span class="icon">✂</span> Picking</a>
+    <a href="expedicao.html"><span class="icon">↑</span> Expedição</a>
+    <a href="inventario.html"><span class="icon">☑</span> Inventário</a>
+    <div class="section-label">Consulta</div>
+    <a href="camaras.html"><span class="icon">▦</span> Câmaras</a>
+    <a href="tuneis.html"><span class="icon">≡</span> Túneis</a>
+    <a href="relatorios.html"><span class="icon">📄</span> Relatórios</a>
+    <a href="historico.html"><span class="icon">🕓</span> Histórico</a>
+  </nav>
+</aside>
+<div id="main">
+  <header><h1>Câmaras</h1><span class="badge">Mapa Fidedigno</span></header>
+  <div class="content">
+
+    <div class="toolbar">
+      <button class="btn btn-ghost btn-sm" id="btn-c01" onclick="renderCamara('01')">Câmara 01</button>
+      <button class="btn btn-ghost btn-sm" id="btn-c02" onclick="renderCamara('02')">Câmara 02</button>
+      <div class="flex gap-2 items-center text-sm" style="margin-left:auto">
+        <span class="pos-cell livre" style="width:14px;height:14px"></span> Livre
+        <span class="pos-cell ocupada" style="width:14px;height:14px"></span> Ocupada
+        <span class="pos-cell reservada" style="width:14px;height:14px"></span> Reservada
+        <span class="pos-cell gap" style="width:14px;height:14px"></span> Porta
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" id="camara-titulo">Câmara 01</div>
+      <div id="camara-map" style="overflow-x:auto">Carregando...</div>
+      <div class="mt-4 text-sm text-muted" id="camara-legenda"></div>
+    </div>
+
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script src="js/camaras.js"></script>
+</body>
+</html>

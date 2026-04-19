@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Picking — Opus WMS</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<aside id="sidebar">
+  <div class="logo">Opus WMS <span>Warehouse Management</span></div>
+  <nav>
+    <div class="section-label">Operacional</div>
+    <a href="index.html"><span class="icon">⊞</span> Dashboard</a>
+    <a href="recepcao.html"><span class="icon">↓</span> Recepção</a>
+    <a href="resfriamento.html"><span class="icon">❄</span> Resfriamento</a>
+    <a href="armazenamento.html"><span class="icon">⬛</span> Armazenamento</a>
+    <a href="remontes.html"><span class="icon">⇄</span> Remontes</a>
+    <a href="picking.html"><span class="icon">✂</span> Picking</a>
+    <a href="expedicao.html"><span class="icon">↑</span> Expedição</a>
+    <a href="inventario.html"><span class="icon">☑</span> Inventário</a>
+    <div class="section-label">Consulta</div>
+    <a href="camaras.html"><span class="icon">▦</span> Câmaras</a>
+    <a href="tuneis.html"><span class="icon">≡</span> Túneis</a>
+    <a href="relatorios.html"><span class="icon">📄</span> Relatórios</a>
+    <a href="historico.html"><span class="icon">🕓</span> Histórico</a>
+  </nav>
+</aside>
+<div id="main">
+  <header><h1>Picking</h1><span class="badge">Ordens de Separação</span></header>
+  <div class="content">
+
+    <div class="card">
+      <div class="card-title">Nova Ordem de Picking (OP)</div>
+      <div class="field" style="max-width:500px;margin-bottom:10px">
+        <label>IDs dos Pallets (separados por vírgula)</label>
+        <input id="picking-pallets" placeholder="Ex: 10, 11, 12">
+      </div>
+      <div class="field" style="max-width:500px;margin-bottom:14px">
+        <label>Observações</label>
+        <input id="picking-obs" placeholder="Opcional">
+      </div>
+      <button class="btn btn-primary" id="btn-criar-op">✂ Criar OP + Reservar Posições</button>
+    </div>
+
+    <div class="card">
+      <div class="flex justify-between items-center" style="margin-bottom:12px">
+        <div class="card-title" style="margin:0">Ordens de Picking</div>
+        <button class="btn btn-ghost btn-sm" id="btn-refresh">↻ Atualizar</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>OP</th><th>Pallets</th><th>Status</th><th>Criada em</th><th>Ações</th></tr>
+          </thead>
+          <tbody id="tbody-ops"><tr><td colspan="5" class="text-muted">Carregando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script src="js/picking.js"></script>
+</body>
+</html>
