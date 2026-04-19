@@ -58,6 +58,12 @@ class SessaoOut(BaseModel):
     oa_id: Optional[str] = None
     status: Literal["ativa", "finalizada"]
 
+class SaidaPalletIn(BaseModel):
+    pallet_id: str
+    sessao_id: Optional[str] = None
+    temp_polpa: float
+    observacao: Optional[str] = None
+
 # ---------------------------------------------------------------------------
 # Armazenamento
 # ---------------------------------------------------------------------------
