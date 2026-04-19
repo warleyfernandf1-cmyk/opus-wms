@@ -13,8 +13,9 @@ def status_tuneis():
     db = get_db()
     pallets = (
         db.table("pallets")
-        .select("id,nro_pallet,tunel,boca,variedade,qtd_caixas")
-        .eq("fase", "resfriamento")
+        .select("id,nro_pallet,tunel,boca,variedade,qtd_caixas,fase")
+        .in_("fase", ["recepcao", "resfriamento"])
+        .not_.is_("tunel", "null")
         .execute()
         .data
     )
@@ -37,7 +38,7 @@ def status_tunel(tunel_id: str):
     pallets = (
         db.table("pallets")
         .select("*")
-        .eq("fase", "resfriamento")
+        .in_("fase", ["recepcao", "resfriamento"])
         .eq("tunel", tunel_id)
         .execute()
         .data

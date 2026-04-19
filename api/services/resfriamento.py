@@ -22,8 +22,9 @@ def status_tuneis() -> dict:
     db = get_db()
     pallets = (
         db.table("pallets")
-        .select("id,nro_pallet,tunel,boca,variedade,qtd_caixas")
-        .eq("fase", "resfriamento")
+        .select("id,nro_pallet,tunel,boca,variedade,qtd_caixas,fase")
+        .in_("fase", ["recepcao", "resfriamento"])
+        .not_.is_("tunel", "null")
         .execute()
         .data
     )
@@ -50,6 +51,27 @@ def iniciar_sessao(tunel: str) -> dict:
     now = datetime.utcnow().isoformat()
     row = {"tunel": tunel, "iniciado_em": now, "status": "ativa"}
     result = db.table("sessoes_resfriamento").insert(row).execute().data[0]
+
+    # Mover todos os pallets deste túnel de recepcao → resfriamento
+    pallets_recepcao = (
+        db.table("pallets")
+        .select("id")
+        .eq("fase", "recepcao")
+        .eq("tunel", tunel)
+        .execute()
+        .data
+    )
+    for p in pallets_recepcao:
+        db.table("pallets").update({"fase": "resfriamento", "updated_at": now}).eq("id", p["id"]).execute()
+        db.table("historico").insert({
+            "pallet_id": p["id"],
+            "acao": "resfriamento_inicio",
+            "fase_anterior": "recepcao",
+            "fase_nova": "resfriamento",
+            "dados": {"sessao_id": result["id"]},
+            "created_at": now,
+        }).execute()
+
     return result
 
 
