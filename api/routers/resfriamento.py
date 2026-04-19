@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
-from api.models.schemas import SessaoCreate, SessaoFinalizar, SessaoOut
+from fastapi import APIRouter, HTTPException, Query
+from typing import Optional
+from api.models.schemas import SessaoCreate, SessaoFinalizar, SessaoOut, SaidaPalletIn
 from api.services import resfriamento as svc
 
 router = APIRouter()
@@ -8,6 +9,15 @@ router = APIRouter()
 @router.get("/tuneis")
 def status_tuneis():
     return svc.status_tuneis()
+
+
+@router.get("/sessoes")
+def listar_sessoes(
+    tunel: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+):
+    """Lista sessões de resfriamento com filtros opcionais de túnel e status."""
+    return svc.listar_sessoes(tunel=tunel, status=status)
 
 
 @router.post("/sessao", response_model=SessaoOut, status_code=201)
@@ -30,6 +40,21 @@ def gerar_oa(sessao_id: str):
     if not oa:
         raise HTTPException(404, "Sessão não encontrada ou OA já gerada")
     return oa
+
+
+@router.post("/saida-pallet")
+def saida_pallet(body: SaidaPalletIn):
+    """
+    Registra a saída individual de um pallet do túnel.
+    Grava temp_polpa e observação; move pallet para fase armazenamento
+    (aguardando alocação em câmara).
+    """
+    return svc.saida_pallet(
+        pallet_id=body.pallet_id,
+        sessao_id=body.sessao_id,
+        temp_polpa=body.temp_polpa,
+        observacao=body.observacao,
+    )
 
 
 @router.post("/{pallet_id}/rollback")
