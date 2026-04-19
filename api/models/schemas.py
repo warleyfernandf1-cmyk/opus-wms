@@ -63,6 +63,10 @@ class SalvarTempPalletIn(BaseModel):
     observacao: Optional[str] = None
     sessao_id: Optional[str] = None
 
+class CriarOAIn(BaseModel):
+    pallet_ids: list[str]
+    sessao_id: Optional[str] = None
+
 # ---------------------------------------------------------------------------
 # Armazenamento
 # ---------------------------------------------------------------------------
