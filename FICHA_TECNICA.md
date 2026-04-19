@@ -1,4 +1,4 @@
-# Ficha Técnica — Opus WMS
+# Ficha Técnica — Opus-WMS
 
 > **Versão:** 1.0 | **Stack:** Python / FastAPI · Supabase · Vercel · HTML/JS puro  
 > **URL produção:** https://opus-wms.vercel.app  
