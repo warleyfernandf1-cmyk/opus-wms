@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
-from api.models.schemas import SessaoCreate, SessaoFinalizar, SessaoOut, SaidaPalletIn
+from api.models.schemas import SessaoCreate, SessaoFinalizar, SessaoOut, SalvarTempPalletIn
 from api.services import resfriamento as svc
 
 router = APIRouter()
@@ -16,8 +16,22 @@ def listar_sessoes(
     tunel: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
 ):
-    """Lista sessões de resfriamento com filtros opcionais de túnel e status."""
     return svc.listar_sessoes(tunel=tunel, status=status)
+
+
+@router.get("/oas")
+def listar_oas(tunel: Optional[str] = Query(None)):
+    """Lista Ordens de Armazenamento geradas, opcionalmente filtradas por túnel."""
+    return svc.listar_oas(tunel=tunel)
+
+
+@router.get("/oa/{oa_id}")
+def buscar_oa(oa_id: str):
+    """Retorna uma OA com os pallets vinculados."""
+    oa = svc.buscar_oa(oa_id)
+    if not oa:
+        raise HTTPException(404, "OA não encontrada")
+    return oa
 
 
 @router.post("/sessao", response_model=SessaoOut, status_code=201)
@@ -27,7 +41,6 @@ def iniciar_sessao(body: SessaoCreate):
 
 @router.post("/sessao/{sessao_id}/finalizar", response_model=SessaoOut)
 def finalizar_sessao(sessao_id: str, body: SessaoFinalizar):
-    """Move todos os pallets do túnel para Armazenamento e gera OA."""
     sessao = svc.finalizar_sessao(sessao_id, body.temp_saida)
     if not sessao:
         raise HTTPException(404, "Sessão não encontrada")
@@ -42,18 +55,17 @@ def gerar_oa(sessao_id: str):
     return oa
 
 
-@router.post("/saida-pallet")
-def saida_pallet(body: SaidaPalletIn):
+@router.post("/pallet/{pallet_id}/temp")
+def salvar_temp_pallet(pallet_id: str, body: SalvarTempPalletIn):
     """
-    Registra a saída individual de um pallet do túnel.
-    Grava temp_polpa e observação; move pallet para fase armazenamento
-    (aguardando alocação em câmara).
+    Persiste a temperatura de polpa de um pallet individual.
+    Chamado imediatamente ao salvar — antes de concluir a sessão.
     """
-    return svc.saida_pallet(
-        pallet_id=body.pallet_id,
-        sessao_id=body.sessao_id,
+    return svc.salvar_temp_pallet(
+        pallet_id=pallet_id,
         temp_polpa=body.temp_polpa,
         observacao=body.observacao,
+        sessao_id=body.sessao_id,
     )
 
 
