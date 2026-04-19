@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
-from api.models.schemas import SessaoCreate, SessaoFinalizar, SessaoOut, SalvarTempPalletIn
+from api.models.schemas import SessaoCreate, SessaoFinalizar, SessaoOut, SalvarTempPalletIn, CriarOAIn
 from api.services import resfriamento as svc
 
 router = APIRouter()
@@ -21,17 +21,20 @@ def listar_sessoes(
 
 @router.get("/oas")
 def listar_oas(tunel: Optional[str] = Query(None)):
-    """Lista Ordens de Armazenamento geradas, opcionalmente filtradas por túnel."""
+    """Lista Ordens de Armazenamento com pallets detalhados."""
     return svc.listar_oas(tunel=tunel)
 
 
-@router.get("/oa/{oa_id}")
-def buscar_oa(oa_id: str):
-    """Retorna uma OA com os pallets vinculados."""
-    oa = svc.buscar_oa(oa_id)
-    if not oa:
-        raise HTTPException(404, "OA não encontrada")
-    return oa
+@router.get("/pallets-resfriamento")
+def pallets_em_resfriamento():
+    """Lista todos os pallets em fase resfriamento para o modal de criação de OA."""
+    return svc.pallets_em_resfriamento()
+
+
+@router.post("/oa")
+def criar_oa(body: CriarOAIn):
+    """Cria uma OA com pallets selecionados manualmente. Independente de finalizar_sessao."""
+    return svc.criar_oa(pallet_ids=body.pallet_ids, sessao_id=body.sessao_id)
 
 
 @router.post("/sessao", response_model=SessaoOut, status_code=201)
@@ -57,10 +60,7 @@ def gerar_oa(sessao_id: str):
 
 @router.post("/pallet/{pallet_id}/temp")
 def salvar_temp_pallet(pallet_id: str, body: SalvarTempPalletIn):
-    """
-    Persiste a temperatura de polpa de um pallet individual.
-    Chamado imediatamente ao salvar — antes de concluir a sessão.
-    """
+    """Persiste temperatura de polpa imediatamente no banco."""
     return svc.salvar_temp_pallet(
         pallet_id=pallet_id,
         temp_polpa=body.temp_polpa,
