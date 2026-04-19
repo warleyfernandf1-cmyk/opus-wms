@@ -2,20 +2,19 @@
  * resfriamento.js
  *
  * Regras:
- * - Cada pallet ocupa seu próprio card de boca (mesmo que dois pallets estejam na boca 1)
- * - Temperatura é salva localmente por pallet até que todos estejam preenchidos
- * - Botão "Concluir Sessão" só habilita quando 100% dos pallets têm temperatura
- * - Ao concluir, chama finalizar_sessao que move todos para armazenamento atomicamente
- *
- * Label de sessão: "T01 - 1ª Remessa - S16"
+ * - Fonte da verdade: banco de dados. temp_saida já salva no pallet = temperatura registrada.
+ * - Ao carregar a página, lê temp_saida de cada pallet do banco (sem perda por refresh).
+ * - Salvar temperatura: persiste imediatamente via POST /resfriamento/pallet/{id}/temp.
+ * - Concluir sessão: só habilita quando todos os pallets têm temp_saida != null no banco.
+ * - Ao concluir: chama finalizar_sessao que move todos atomicamente e gera OA.
+ * - OAs listadas na seção inferior com pallets vinculados.
  */
 
 /* ─── estado global ─────────────────────────────────────────── */
 let tunelAtivo = '01';
-let palletSelecionadoId = null;   // id do pallet com painel aberto
-let dadosTuneis = {};             // { "01": { "1": [pallet,...], ... }, "02": {...} }
-let sessaoAtiva = null;           // objeto da sessão ativa do túnel corrente
-let tempsLocais = {};             // { pallet_id: { temp, obs } } — salvo antes de concluir
+let palletSelecionadoId = null;
+let dadosTuneis = {};
+let sessaoAtiva = null;
 
 /* ─── helpers ───────────────────────────────────────────────── */
 
@@ -30,7 +29,6 @@ function labelSessao(tunel, remessa) {
   return `T${tunel} - ${remessa}ª Remessa - S${semanaISO()}`;
 }
 
-/** Retorna lista flat de todos os pallets do túnel ativo */
 function palletsDoTunel() {
   const bocas = dadosTuneis[tunelAtivo] || {};
   return Object.values(bocas).flat();
@@ -42,29 +40,30 @@ function renderBocas() {
   const grid = document.getElementById('bocas-grid');
   const bocas = dadosTuneis[tunelAtivo] || {};
 
-  // Expande: um card por pallet (mesmo que compartilhem a boca)
   const cards = [];
   for (let b = 1; b <= 12; b++) {
     const pallets = bocas[String(b)] || [];
     if (pallets.length === 0) {
-      // Boca vazia — mostra um card vazio por boca
       cards.push(`<div class="boca-card">
         <span class="boca-num">Boca ${b}</span>
         <span class="boca-vazia">Vazia</span>
       </div>`);
     } else {
-      // Um card por pallet dentro desta boca
       pallets.forEach(p => {
         const selecionado = palletSelecionadoId === p.id;
-        const tempLocal = tempsLocais[p.id];
-        const temTemp = tempLocal != null;
-        const classes = ['boca-card', 'ocupada', selecionado ? 'selecionada' : '', temTemp ? 'com-temp' : ''].filter(Boolean).join(' ');
+        // temp_saida já salvo no banco = temperatura registrada (fonte da verdade)
+        const temTemp = p.temp_saida != null;
+        const classes = ['boca-card', 'ocupada',
+          selecionado ? 'selecionada' : '',
+          temTemp ? 'com-temp' : ''
+        ].filter(Boolean).join(' ');
+
         cards.push(`<div class="${classes}" onclick="abrirDetalhe('${p.id}', ${b})">
           <span class="boca-num">Boca ${b}</span>
           <span class="boca-pallet">${p.id}</span>
           <span class="boca-var">${p.variedade || '—'}</span>
           <span class="boca-temp">${p.temp_entrada != null ? p.temp_entrada + '°C' : '—'}</span>
-          ${temTemp ? `<span class="boca-temp-saida">Polpa: ${tempLocal.temp}°C ✓</span>` : ''}
+          ${temTemp ? `<span class="boca-temp-saida">Polpa: ${p.temp_saida}°C ✓</span>` : ''}
         </div>`);
       });
     }
@@ -88,7 +87,8 @@ function atualizarConcluirBar() {
   }
 
   bar.style.display = 'flex';
-  const comTemp = todos.filter(p => tempsLocais[p.id] != null).length;
+  // Fonte da verdade: temp_saida no banco
+  const comTemp = todos.filter(p => p.temp_saida != null).length;
   const total = todos.length;
   const completo = comTemp === total;
 
@@ -132,8 +132,11 @@ async function renderSessaoBar() {
 async function renderAguardando() {
   const container = document.getElementById('aw-container');
   try {
+    // Apenas pallets com temperatura registrada (temp_saida != null) e sem câmara
     const pallets = await api.get('/armazenamento/aguardando');
-    if (!pallets || pallets.length === 0) {
+    const comTemp = (pallets || []).filter(p => p.temp_saida != null);
+
+    if (comTemp.length === 0) {
       container.innerHTML = '<span style="color:var(--text-muted);font-size:.82rem">Nenhum pallet aguardando armazenamento.</span>';
       return;
     }
@@ -147,7 +150,7 @@ async function renderAguardando() {
           </tr>
         </thead>
         <tbody>
-          ${pallets.map(p => `
+          ${comTemp.map(p => `
             <tr>
               <td style="font-weight:600">${p.id}</td>
               <td>${p.variedade || '—'}</td>
@@ -166,12 +169,42 @@ async function renderAguardando() {
   }
 }
 
+/* ─── ordens de armazenamento ───────────────────────────────── */
+
+async function renderOAs() {
+  const container = document.getElementById('oas-container');
+  try {
+    const oas = await api.get(`/resfriamento/oas?tunel=${tunelAtivo}`);
+    if (!oas || oas.length === 0) {
+      container.innerHTML = '<span style="color:var(--text-muted);font-size:.82rem">Nenhuma OA gerada para este túnel.</span>';
+      return;
+    }
+
+    container.innerHTML = oas.map(oa => {
+      const pallets = (oa.dados?.pallets || []);
+      const criada = oa.criada_em ? new Date(oa.criada_em).toLocaleString('pt-BR') : '—';
+      return `
+        <div class="oa-card">
+          <div class="oa-header">
+            <span class="oa-id">${oa.id}</span>
+            <span class="oa-status pendente">${oa.status || 'pendente'}</span>
+          </div>
+          <div class="oa-meta">Criada em ${criada} · ${pallets.length} pallet(s)</div>
+          <div style="font-size:.78rem;color:var(--text-muted)">
+            Pallets: ${pallets.length > 0 ? pallets.join(', ') : '—'}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    container.innerHTML = `<span style="color:var(--danger);font-size:.82rem">Erro: ${e.message}</span>`;
+  }
+}
+
 /* ─── seleção de túnel ──────────────────────────────────────── */
 
 async function selectTunel(tunel) {
   tunelAtivo = tunel;
   palletSelecionadoId = null;
-  tempsLocais = {};
   fecharDetalhe(false);
 
   document.getElementById('tab-t01').classList.toggle('active', tunel === '01');
@@ -188,6 +221,7 @@ async function selectTunel(tunel) {
 
   await renderSessaoBar();
   atualizarConcluirBar();
+  await renderOAs();
 }
 
 /* ─── detalhe do pallet ─────────────────────────────────────── */
@@ -214,10 +248,9 @@ function abrirDetalhe(palletId, boca) {
   document.getElementById('d-operador').textContent = p.created_at
     ? `Recepção: ${new Date(p.created_at).toLocaleString('pt-BR')}` : '—';
 
-  // Preenche com valor já salvo localmente, se houver
-  const local = tempsLocais[palletId];
-  document.getElementById('input-temp-polpa').value = local ? local.temp : '';
-  document.getElementById('input-obs').value = local ? local.obs : '';
+  // Preenche com valor já salvo no banco (fonte da verdade)
+  document.getElementById('input-temp-polpa').value = p.temp_saida != null ? p.temp_saida : '';
+  document.getElementById('input-obs').value = '';
 
   const panel = document.getElementById('detalhe-panel');
   panel.classList.add('ativo');
@@ -230,9 +263,9 @@ function fecharDetalhe(rerender = true) {
   if (rerender) renderBocas();
 }
 
-/* ─── salvar temperatura localmente ────────────────────────── */
+/* ─── salvar temperatura — persiste imediatamente no banco ──── */
 
-document.getElementById('btn-salvar-temp').addEventListener('click', () => {
+document.getElementById('btn-salvar-temp').addEventListener('click', async () => {
   if (!palletSelecionadoId) return;
 
   const tempVal = parseFloat(document.getElementById('input-temp-polpa').value);
@@ -242,10 +275,26 @@ document.getElementById('btn-salvar-temp').addEventListener('click', () => {
   }
 
   const obs = document.getElementById('input-obs').value.trim();
-  tempsLocais[palletSelecionadoId] = { temp: tempVal, obs: obs || null };
 
-  showToast(`Temperatura de ${palletSelecionadoId} registrada. Salve os demais pallets para concluir a sessão.`, 'success');
-  fecharDetalhe(true);
+  try {
+    // Persiste imediatamente no banco — não perde com refresh
+    await api.post(`/resfriamento/pallet/${palletSelecionadoId}/temp`, {
+      temp_polpa: tempVal,
+      observacao: obs || null,
+      sessao_id: sessaoAtiva ? sessaoAtiva.id : null,
+    });
+
+    // Atualiza o estado local refletindo o banco
+    const bocas = dadosTuneis[tunelAtivo] || {};
+    Object.values(bocas).flat().forEach(p => {
+      if (p.id === palletSelecionadoId) p.temp_saida = tempVal;
+    });
+
+    showToast(`Temperatura do pallet ${palletSelecionadoId} salva.`, 'success');
+    fecharDetalhe(true);
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
 });
 
 /* ─── concluir sessão em bloco ──────────────────────────────── */
@@ -254,14 +303,14 @@ async function concluirSessao() {
   if (!sessaoAtiva) return;
 
   const todos = palletsDoTunel();
-  const semTemp = todos.filter(p => tempsLocais[p.id] == null);
+  const semTemp = todos.filter(p => p.temp_saida == null);
   if (semTemp.length > 0) {
     showToast(`${semTemp.length} pallet(s) sem temperatura registrada.`, 'error');
     return;
   }
 
-  // Usa a temperatura média dos pallets como temp_saida da sessão
-  const temps = todos.map(p => tempsLocais[p.id].temp);
+  // Temperatura da sessão = média das temperaturas de polpa
+  const temps = todos.map(p => p.temp_saida);
   const tempMedia = parseFloat((temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1));
 
   try {
@@ -269,7 +318,6 @@ async function concluirSessao() {
       temp_saida: tempMedia,
     });
     showToast('Sessão concluída! Todos os pallets movidos para armazenamento.', 'success');
-    tempsLocais = {};
     sessaoAtiva = null;
     fecharDetalhe(false);
     await init();
