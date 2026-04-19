@@ -15,6 +15,12 @@ def posicoes_livres(camara: str | None = None):
     return svc.posicoes_livres(camara)
 
 
+@router.get("/aguardando")
+def aguardando_alocacao():
+    """Pallets que saíram do túnel e ainda não foram alocados em câmara."""
+    return svc.aguardando_alocacao()
+
+
 @router.post("/alocar")
 def alocar_pallet(body: AlocarPalletIn):
     return svc.alocar(body)
