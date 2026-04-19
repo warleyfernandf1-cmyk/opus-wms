@@ -2,10 +2,12 @@
 Regras de negócio do Resfriamento.
 
 Fluxo:
-  - iniciar_sessao(): move todos os pallets do túnel recepcao→resfriamento.
-  - salvar_temp_pallet(): grava temp_polpa individualmente no pallet (persistência imediata).
-  - finalizar_sessao(): move todos os pallets resfriamento→armazenamento e gera OA.
-  - rollback(): volta pallet individual resfriamento→recepcao.
+  - Pallets entram em resfriamento automaticamente na Recepção (tunel+boca definidos).
+  - iniciar_sessao(): move pallets recepcao→resfriamento (mantido para compatibilidade).
+  - salvar_temp_pallet(): persiste temp_polpa individualmente e imediatamente no banco.
+  - criar_oa(): cria OA com pallets selecionados manualmente — independente da sessão.
+  - finalizar_sessao(): conclui a sessão do túnel — processo independente da OA.
+  - rollback(): volta pallet resfriamento→recepcao.
 """
 from datetime import datetime
 from fastapi import HTTPException
@@ -51,42 +53,45 @@ def listar_sessoes(tunel: str | None = None, status: str | None = None) -> list:
     return query.order("iniciado_em", desc=True).execute().data
 
 
-def buscar_oa(oa_id: str) -> dict | None:
-    """Retorna OA com seus pallets detalhados."""
-    db = get_db()
-    rows = db.table("ordens_armazenamento").select("*").eq("id", oa_id).execute().data
-    if not rows:
-        return None
-    oa = rows[0]
-    pallet_ids = (oa.get("dados") or {}).get("pallets", [])
-    pallets = []
-    if pallet_ids:
-        pallets = (
-            db.table("pallets")
-            .select("id,variedade,qtd_caixas,classificacao,produtor,tunel,boca,"
-                    "temp_entrada,temp_saida,fase,camara,rua,posicao,updated_at")
-            .in_("id", pallet_ids)
-            .execute()
-            .data
-        )
-    oa["pallets"] = pallets
-    return oa
-
-
 def listar_oas(tunel: str | None = None) -> list:
-    """Lista OAs com pallets vinculados."""
+    """Lista OAs com pallets detalhados."""
     db = get_db()
-    sessoes_query = db.table("sessoes_resfriamento").select("id,tunel,iniciado_em,finalizado_em,oa_id,status")
+    query = db.table("ordens_armazenamento").select("*").order("criada_em", desc=True)
     if tunel:
-        sessoes_query = sessoes_query.eq("tunel", tunel)
-    sessoes = sessoes_query.order("iniciado_em", desc=True).execute().data
+        query = query.eq("tunel", tunel)
+    oas = query.execute().data
 
-    oa_ids = [s["oa_id"] for s in sessoes if s.get("oa_id")]
-    if not oa_ids:
-        return []
-
-    oas = db.table("ordens_armazenamento").select("*").in_("id", oa_ids).execute().data
+    # Hidratar pallets de cada OA
+    for oa in oas:
+        pallet_ids = (oa.get("dados") or {}).get("pallets", [])
+        if pallet_ids:
+            pallets = (
+                db.table("pallets")
+                .select("id,variedade,qtd_caixas,classificacao,produtor,tunel,boca,"
+                        "temp_entrada,temp_saida,fase,updated_at")
+                .in_("id", pallet_ids)
+                .execute()
+                .data
+            )
+        else:
+            pallets = []
+        oa["pallets_detalhes"] = pallets
     return oas
+
+
+def pallets_em_resfriamento() -> list:
+    """Retorna todos os pallets atualmente em fase resfriamento para popular o modal de OA."""
+    db = get_db()
+    return (
+        db.table("pallets")
+        .select("id,nro_pallet,variedade,qtd_caixas,classificacao,produtor,"
+                "tunel,boca,temp_entrada,temp_saida,fase,updated_at")
+        .eq("fase", "resfriamento")
+        .order("tunel")
+        .order("boca")
+        .execute()
+        .data
+    )
 
 
 # ─── sessão ───────────────────────────────────────────────────
@@ -131,13 +136,8 @@ def iniciar_sessao(tunel: str) -> dict:
 
 
 def salvar_temp_pallet(pallet_id: str, temp_polpa: float, observacao: str | None, sessao_id: str | None) -> dict:
-    """
-    Persiste a temperatura de polpa de um pallet individual no banco imediatamente.
-    Não muda a fase — o pallet continua em resfriamento.
-    Grava no campo temp_saida (reutilizado para temp de polpa) e no histórico.
-    """
+    """Persiste temperatura de polpa imediatamente. Pallet continua em resfriamento."""
     db = get_db()
-
     rows = db.table("pallets").select("*").eq("id", pallet_id).execute().data
     if not rows:
         raise HTTPException(404, "Pallet não encontrado.")
@@ -146,10 +146,7 @@ def salvar_temp_pallet(pallet_id: str, temp_polpa: float, observacao: str | None
         raise HTTPException(400, f"Pallet não está em resfriamento (fase: {pallet['fase']}).")
 
     now = datetime.utcnow().isoformat()
-    db.table("pallets").update({
-        "temp_saida": temp_polpa,
-        "updated_at": now,
-    }).eq("id", pallet_id).execute()
+    db.table("pallets").update({"temp_saida": temp_polpa, "updated_at": now}).eq("id", pallet_id).execute()
 
     dados: dict = {"temp_polpa": temp_polpa, "tipo": "registro_individual"}
     if sessao_id:
@@ -169,6 +166,57 @@ def salvar_temp_pallet(pallet_id: str, temp_polpa: float, observacao: str | None
     return {"ok": True, "pallet_id": pallet_id, "temp_polpa": temp_polpa}
 
 
+def criar_oa(pallet_ids: list[str], sessao_id: str | None) -> dict:
+    """
+    Cria uma OA com os pallets selecionados manualmente.
+    Independente de finalizar_sessao — pode ser criada a qualquer momento.
+    Pallets devem estar em fase resfriamento.
+    """
+    db = get_db()
+    if not pallet_ids:
+        raise HTTPException(400, "Selecione ao menos um pallet.")
+
+    # Valida que todos estão em resfriamento
+    pallets = (
+        db.table("pallets")
+        .select("id,fase,tunel")
+        .in_("id", pallet_ids)
+        .execute()
+        .data
+    )
+    invalidos = [p["id"] for p in pallets if p["fase"] != "resfriamento"]
+    if invalidos:
+        raise HTTPException(400, f"Pallets não estão em resfriamento: {', '.join(invalidos)}")
+
+    now = datetime.utcnow().isoformat()
+    oa_id = _next_oa_id(db)
+
+    # Detecta túnel da OA (do primeiro pallet)
+    tunel = pallets[0]["tunel"] if pallets else None
+
+    db.table("ordens_armazenamento").insert({
+        "id": oa_id,
+        "sessao_id": sessao_id,
+        "criada_em": now,
+        "status": "pendente",
+        "tunel": tunel,
+        "dados": {"pallets": pallet_ids},
+    }).execute()
+
+    # Histórico
+    for pid in pallet_ids:
+        db.table("historico").insert({
+            "pallet_id": pid,
+            "acao": "oa_criada",
+            "fase_anterior": "resfriamento",
+            "fase_nova": "resfriamento",
+            "dados": {"oa_id": oa_id},
+            "created_at": now,
+        }).execute()
+
+    return {"ok": True, "oa_id": oa_id, "pallets": pallet_ids}
+
+
 def finalizar_sessao(sessao_id: str, temp_saida: float) -> dict | None:
     db = get_db()
     rows = db.table("sessoes_resfriamento").select("*").eq("id", sessao_id).execute().data
@@ -179,7 +227,6 @@ def finalizar_sessao(sessao_id: str, temp_saida: float) -> dict | None:
         raise HTTPException(400, "Sessão já finalizada.")
 
     now = datetime.utcnow().isoformat()
-
     pallets = (
         db.table("pallets")
         .select("id")
@@ -202,19 +249,17 @@ def finalizar_sessao(sessao_id: str, temp_saida: float) -> dict | None:
             "created_at": now,
         }).execute()
 
-    oa_id = gerar_oa(sessao_id, _commit=False, db=db, now=now, sessao=sessao)
-
     db.table("sessoes_resfriamento").update({
         "status": "finalizada",
         "finalizado_em": now,
         "temp_saida": temp_saida,
-        "oa_id": oa_id,
     }).eq("id", sessao_id).execute()
 
     return db.table("sessoes_resfriamento").select("*").eq("id", sessao_id).execute().data[0]
 
 
 def gerar_oa(sessao_id: str, *, _commit: bool = True, db=None, now: str = None, sessao: dict = None) -> str | None:
+    """Mantido para compatibilidade com finalizar_sessao legado."""
     if db is None:
         db = get_db()
     if now is None:
@@ -225,7 +270,6 @@ def gerar_oa(sessao_id: str, *, _commit: bool = True, db=None, now: str = None, 
             return None
         sessao = rows[0]
 
-    # Pallets que acabaram de ser movidos para armazenamento nesta sessão
     pallets = (
         db.table("pallets")
         .select("id")
@@ -242,6 +286,7 @@ def gerar_oa(sessao_id: str, *, _commit: bool = True, db=None, now: str = None, 
         "sessao_id": sessao_id,
         "criada_em": now,
         "status": "pendente",
+        "tunel": sessao["tunel"],
         "dados": {"pallets": [p["id"] for p in pallets]},
     }).execute()
 
