@@ -29,6 +29,24 @@ def posicoes_livres(camara: str | None = None) -> list:
     return q.execute().data
 
 
+def aguardando_alocacao() -> list:
+    """
+    Retorna pallets em fase armazenamento que ainda não têm posição de câmara definida.
+    São os que saíram do túnel e aguardam ser alocados em câmara.
+    """
+    db = get_db()
+    return (
+        db.table("pallets")
+        .select("id,nro_pallet,variedade,classificacao,produtor,tunel,boca,"
+                "temp_entrada,temp_saida,qtd_caixas,fase,updated_at")
+        .eq("fase", "armazenamento")
+        .is_("camara", "null")
+        .order("updated_at", desc=False)
+        .execute()
+        .data
+    )
+
+
 def alocar(body: AlocarPalletIn) -> dict:
     db = get_db()
     pos_id = f"C{body.camara}-R{body.rua:02d}-P{body.posicao:02d}"
