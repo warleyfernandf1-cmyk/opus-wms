@@ -16,8 +16,6 @@
       border-radius:8px; margin-bottom:16px; font-size:.8rem; }
     .sessao-tag { background:var(--accent); color:#fff; padding:2px 8px; border-radius:4px;
       font-size:.75rem; font-weight:600; white-space:nowrap; }
-
-    /* Grade de bocas — wrap automático */
     .bocas-grid { display:flex; flex-wrap:wrap; gap:8px; }
     .boca-card { border:1px solid var(--border); border-radius:8px; padding:10px 8px;
       width:calc((100% - 40px) / 6); min-width:120px; min-height:90px;
@@ -36,8 +34,6 @@
     .boca-temp-saida { font-size:.7rem; padding:2px 6px; border-radius:4px; width:fit-content;
       background:rgba(99,102,241,.15); color:var(--accent); font-weight:600; }
     .boca-vazia { font-size:.7rem; color:var(--text-muted); opacity:.5; margin:auto 0; }
-
-    /* Painel de detalhe */
     .detalhe-panel { display:none; flex-direction:column; gap:14px; }
     .detalhe-panel.ativo { display:flex; }
     .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -48,8 +44,6 @@
       font-size:.75rem; font-weight:600; background:rgba(245,158,11,.15); color:#f59e0b; }
     .divider { height:1px; background:var(--border); }
     .operador-info { font-size:.72rem; color:var(--text-muted); }
-
-    /* Botão concluir sessão */
     .concluir-bar { display:flex; align-items:center; justify-content:space-between;
       padding:10px 0 0; border-top:1px solid var(--border); margin-top:8px; }
     .concluir-info { font-size:.78rem; color:var(--text-muted); }
@@ -59,8 +53,6 @@
     .btn-concluir:disabled { background:var(--surface2); color:var(--text-muted); cursor:not-allowed; }
     .btn-concluir:not(:disabled) { background:#22c55e; color:#fff; }
     .btn-concluir:not(:disabled):hover { background:#16a34a; }
-
-    /* Tabela aguardando */
     .aw-table { width:100%; border-collapse:collapse; font-size:.82rem; }
     .aw-table th { text-align:left; font-size:.65rem; font-weight:600; color:var(--text-muted);
       text-transform:uppercase; letter-spacing:.05em; padding:6px 10px;
@@ -72,6 +64,15 @@
       border-radius:4px; font-size:.7rem; font-weight:600; }
     .badge-frutibras { background:rgba(99,102,241,.15); color:var(--accent); padding:2px 6px;
       border-radius:4px; font-size:.7rem; font-weight:600; }
+    .oa-card { border:1px solid var(--border); border-radius:8px; padding:12px 14px;
+      margin-bottom:10px; background:var(--surface2); }
+    .oa-header { display:flex; justify-content:space-between; align-items:center;
+      margin-bottom:8px; }
+    .oa-id { font-size:.85rem; font-weight:600; color:var(--accent); }
+    .oa-status { font-size:.7rem; padding:2px 8px; border-radius:4px; font-weight:600;
+      background:rgba(245,158,11,.15); color:#f59e0b; }
+    .oa-status.pendente { background:rgba(245,158,11,.15); color:#f59e0b; }
+    .oa-meta { font-size:.75rem; color:var(--text-muted); margin-bottom:8px; }
   </style>
 </head>
 <body>
@@ -131,7 +132,6 @@
       <div class="bocas-grid" id="bocas-grid">
         <span style="color:var(--text-muted);font-size:.82rem">Carregando...</span>
       </div>
-      <!-- Barra de concluir sessão -->
       <div class="concluir-bar" id="concluir-bar" style="display:none">
         <div class="concluir-info" id="concluir-info">—</div>
         <button class="btn-concluir" id="btn-concluir-sessao" disabled onclick="concluirSessao()">
@@ -176,10 +176,21 @@
       </div>
     </div>
 
-    <!-- Pallets aguardando armazenamento -->
+    <!-- Pallets aguardando armazenamento (com OA vinculada) -->
     <div class="card" id="card-aguardando">
       <div class="card-title">Pallets aguardando armazenamento</div>
       <div id="aw-container">
+        <span style="color:var(--text-muted);font-size:.82rem">Carregando...</span>
+      </div>
+    </div>
+
+    <!-- Ordens de Armazenamento -->
+    <div class="card" id="card-oas">
+      <div class="card-title">Ordens de Armazenamento (OA)</div>
+      <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">
+        Geradas ao concluir cada sessão de túnel. Programam a alocação dos pallets nas câmaras frias.
+      </p>
+      <div id="oas-container">
         <span style="color:var(--text-muted);font-size:.82rem">Carregando...</span>
       </div>
     </div>
