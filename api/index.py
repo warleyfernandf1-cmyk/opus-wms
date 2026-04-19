@@ -1,7 +1,5 @@
-import pathlib
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -39,7 +37,3 @@ app.include_router(historico.router,    prefix="/api/historico",    tags=["Hist√
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "Opus WMS"}
-
-
-_static = pathlib.Path(__file__).parent.parent / "public"
-app.mount("/", StaticFiles(directory=str(_static), html=True), name="static")
