@@ -1,12 +1,12 @@
 const COLUMN_ALIASES = {
   nro_pallet: ['número', 'numero', 'nº', 'n°', 'nro', 'pallet', 'nº do pallet', 'numero pallet'],
   qtd_caixas: ['qtde. caixas', 'qtde caixas', 'qtd caixas', 'quantidade de caixas', 'caixas'],
-  data_embalamento: ['data de embalamento', 'data embalamento', 'data embal.', 'data embal', 'data emb.', 'data emb', 'embalamento'],
+  data_embalamento: ['data de embalamento', 'data embalamento', 'data embalagem', 'data embal.', 'data embal', 'data emb.', 'data emb', 'embalamento'],
   variedade: ['variedade'],
   classificacao: ['classificação', 'classificacao'],
   safra: ['safra'],
   etiqueta: ['etiqueta', 'rótulo', 'rotulo'],
-  apelido_talhao: ['apelido talhã', 'apelido talhao', 'talhão', 'talhao', 'área', 'area'],
+  apelido_talhao: ['apelido talhão', 'apelido talhao', 'talhão', 'talhao', 'área', 'area'],
   controle: ['controle'],
   embalagem_raw: ['embalagem'],
   produtor_raw: ['produtor'],
@@ -33,9 +33,9 @@ let selectedImportedRowIndex = null;
 function normalizeHeader(value) {
   return String(value || '')
     .normalize('NFD')
-    .replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/\\s+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -60,17 +60,33 @@ function findColumnKey(headersMap, aliases) {
   return null;
 }
 
+function findHeaderRowIndex(rows) {
+  return rows.findIndex(row => {
+    const normalizedCells = row.map(cell => normalizeHeader(cell)).filter(Boolean);
+    if (!normalizedCells.length) return false;
+
+    const hasPallet = normalizedCells.some(cell => cell === 'pallet' || cell.includes('pallet'));
+    const hasCaixas = normalizedCells.some(cell => cell === 'caixas' || cell.includes('caixas'));
+    const hasData = normalizedCells.some(cell => cell.includes('data embal'));
+    const hasVariedade = normalizedCells.some(cell => cell.includes('variedade'));
+
+    return hasPallet && hasCaixas && hasData && hasVariedade;
+  });
+}
+
 function parseNumber(value) {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value === 'number') return value;
+
   const raw = asText(value);
-  const cleaned = raw.replace(/\\s+/g, '').replace(',', '.');
-  const match = cleaned.match(/-?\\d+(\\.\\d+)?/);
-  return match ? Number(match[0]) : null;
+  const kgLike = raw.match(/(\d+[.,]?\d*)/);
+  if (!kgLike) return null;
+  return Number(kgLike[1].replace(',', '.'));
 }
 
 function excelDateToISO(value) {
   if (value === null || value === undefined || value === '') return '';
+
   if (typeof value === 'number' && window.XLSX?.SSF?.parse_date_code) {
     const parsed = XLSX.SSF.parse_date_code(value);
     if (parsed?.y && parsed?.m && parsed?.d) {
@@ -80,14 +96,29 @@ function excelDateToISO(value) {
 
   const raw = asText(value);
   if (!raw) return '';
-  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
 
-  const br = raw.match(/^(\\d{1,2})[\\/.-](\\d{1,2})[\\/.-](\\d{2,4})$/);
-  if (br) {
-    const day = br[1].padStart(2, '0');
-    const month = br[2].padStart(2, '0');
-    const year = br[3].length === 2 ? `20${br[3]}` : br[3];
-    return `${year}-${month}-${day}`;
+  const usOrBr = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (usOrBr) {
+    const p1 = Number(usOrBr[1]);
+    const p2 = Number(usOrBr[2]);
+    const year = usOrBr[3].length === 2 ? `20${usOrBr[3]}` : usOrBr[3];
+
+    let day = p1;
+    let month = p2;
+
+    if (p1 <= 12 && p2 <= 12) {
+      month = p1;
+      day = p2;
+    } else if (p1 <= 12 && p2 > 12) {
+      month = p1;
+      day = p2;
+    } else {
+      day = p1;
+      month = p2;
+    }
+
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
 
   return '';
@@ -95,7 +126,7 @@ function excelDateToISO(value) {
 
 function formatIsoDateToBR(value) {
   if (!value) return '—';
-  const match = String(value).match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return value;
   return `${match[3]}/${match[2]}/${match[1]}`;
 }
@@ -110,7 +141,7 @@ function normalizeEmbalagem(value) {
 }
 
 function normalizeProdutor(value) {
-  const tokens = asText(value).replace(/\\s+/g, ' ').split(' ').filter(Boolean);
+  const tokens = asText(value).replace(/\s+/g, ' ').split(' ').filter(Boolean);
   if (!tokens.length) return '';
   if (tokens.length === 1) return tokens[0];
   return `${tokens[0]} ${tokens[tokens.length - 1]}`;
@@ -119,14 +150,14 @@ function normalizeProdutor(value) {
 function normalizeCaixa(value) {
   const raw = asText(value);
   if (!raw) return '';
-  const match = raw.match(/(?:\\bCX\\b|\\bCAIXA\\b)\\s*[:\\-]?\\s*([A-Z0-9./-]+)/i);
+  const match = raw.match(/(?:\bCX\b|\bCAIXA\b)\s*[:\-]?\s*([A-Z0-9./-]+)/i);
   return match ? match[1].trim() : raw;
 }
 
 function normalizePeso(value) {
   const raw = asText(value);
   if (!raw) return parseNumber(value);
-  const match = raw.match(/(\\d+[.,]?\\d*)\\s*KG\\b/i);
+  const match = raw.match(/(\d+[.,]?\d*)\s*KG\b/i);
   if (match) return Number(match[1].replace(',', '.'));
   return parseNumber(value);
 }
@@ -254,13 +285,22 @@ function clearImportState() {
 function parseWorksheetRows(rows) {
   if (!rows.length) throw new Error('A planilha está vazia.');
 
-  const headers = rows[0].map(cell => asText(cell));
+  const headerRowIndex = findHeaderRowIndex(rows);
+  if (headerRowIndex === -1) {
+    throw new Error('Cabeçalho da planilha não encontrado.');
+  }
+
+  const headers = rows[headerRowIndex].map(cell => asText(cell));
   const headersMap = {};
   headers.forEach((header, index) => {
     headersMap[normalizeHeader(header)] = index;
   });
 
-  const missingColumns = REQUIRED_COLUMNS.filter(key => findColumnKey(headersMap, COLUMN_ALIASES[key]) === null);
+  const missingColumns = REQUIRED_COLUMNS.filter(key => {
+    const aliases = COLUMN_ALIASES[key];
+    return !aliases || findColumnKey(headersMap, aliases) === null;
+  });
+
   if (missingColumns.length) {
     throw new Error(`Colunas obrigatórias não encontradas: ${missingColumns.join(', ')}`);
   }
@@ -270,9 +310,10 @@ function parseWorksheetRows(rows) {
     col[key] = findColumnKey(headersMap, aliases);
   });
 
-  importedRows = rows.slice(1)
+  importedRows = rows
+    .slice(headerRowIndex + 1)
     .filter(row => row.some(cell => asText(cell) !== ''))
-    .map((row) => {
+    .map(row => {
       const classificacao = asText(row[col.classificacao]);
       const parsed = {
         _saved: false,
@@ -291,9 +332,11 @@ function parseWorksheetRows(rows) {
         controle: asText(row[col.controle]),
         mercado: normalizeMercado(classificacao)
       };
+
       validateImportedRow(parsed);
       return parsed;
-    });
+    })
+    .filter(row => row.nro_pallet || row.qtd_caixas || row.data_embalamento);
 
   selectedImportedRowIndex = null;
   renderImportPreview();
@@ -307,7 +350,7 @@ async function handlePlanilha(file) {
   document.getElementById('import-errors').textContent = '';
 
   const reader = new FileReader();
-  reader.onload = (event) => {
+  reader.onload = event => {
     try {
       const data = event.target.result;
       const workbook = XLSX.read(data, { type: 'array' });
@@ -410,31 +453,31 @@ document.getElementById('drop-planilha').addEventListener('click', () => {
   document.getElementById('file-planilha').click();
 });
 
-document.getElementById('drop-planilha').addEventListener('dragover', (event) => {
+document.getElementById('drop-planilha').addEventListener('dragover', event => {
   event.preventDefault();
   event.currentTarget.style.borderColor = 'var(--accent)';
 });
 
-document.getElementById('drop-planilha').addEventListener('dragleave', (event) => {
+document.getElementById('drop-planilha').addEventListener('dragleave', event => {
   event.preventDefault();
   event.currentTarget.style.borderColor = 'var(--border)';
 });
 
-document.getElementById('drop-planilha').addEventListener('drop', async (event) => {
+document.getElementById('drop-planilha').addEventListener('drop', async event => {
   event.preventDefault();
   event.currentTarget.style.borderColor = 'var(--border)';
   const file = event.dataTransfer.files?.[0];
   await handlePlanilha(file);
 });
 
-document.getElementById('file-planilha').addEventListener('change', async (event) => {
+document.getElementById('file-planilha').addEventListener('change', async event => {
   const file = event.target.files?.[0];
   await handlePlanilha(file);
 });
 
 document.getElementById('btn-limpar-importacao').addEventListener('click', clearImportState);
 
-document.getElementById('tbody-import-preview').addEventListener('click', (event) => {
+document.getElementById('tbody-import-preview').addEventListener('click', event => {
   const button = event.target.closest('.btn-usar-import');
   if (!button) return;
 
