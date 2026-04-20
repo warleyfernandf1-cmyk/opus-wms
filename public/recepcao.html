@@ -48,27 +48,7 @@
           <div class="text-muted">Formatos aceitos: .xlsx · .xls · .csv</div>
         </div>
 
-        <div class="form-grid" style="margin-bottom:16px;">
-          <div class="field">
-            <label>Temp. Entrada padrão (°C)</label>
-            <input id="import-default-temp" type="number" step="0.1" value="0">
-          </div>
-          <div class="field">
-            <label>Túnel padrão</label>
-            <select id="import-default-tunel">
-              <option value="01">Túnel 01</option>
-              <option value="02">Túnel 02</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Boca padrão</label>
-            <input id="import-default-boca" type="number" min="1" max="12" value="1">
-          </div>
-        </div>
-
         <div class="flex items-center" style="gap:10px; flex-wrap:wrap; margin-bottom:12px;">
-          <button class="btn btn-primary" id="btn-aplicar-padroes" type="button">Aplicar padrões nas linhas vazias</button>
-          <button class="btn btn-primary" id="btn-registrar-importaveis" type="button">Registrar linhas válidas</button>
           <button class="btn btn-danger" id="btn-limpar-importacao" type="button">Limpar importação</button>
           <span id="import-summary" class="text-muted">Nenhuma planilha carregada.</span>
         </div>
@@ -81,23 +61,17 @@
               <tr>
                 <th>#</th>
                 <th>Status</th>
-                <th>Nº Pallet</th>
-                <th>Qtd Cx</th>
+                <th>Pallet</th>
+                <th>Caixas</th>
                 <th>Data Embal.</th>
                 <th>Variedade</th>
                 <th>Classificação</th>
-                <th>Safra</th>
                 <th>Embalagem</th>
-                <th>Rótulo</th>
                 <th>Produtor</th>
                 <th>Caixa</th>
                 <th>Peso</th>
                 <th>Área</th>
                 <th>Controle</th>
-                <th>Mercado</th>
-                <th>Temp.</th>
-                <th>Túnel</th>
-                <th>Boca</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -133,8 +107,9 @@
         </div>
         <div class="field"><label>Boca (1-12)</label><input name="boca" type="number" min="1" max="12" required></div>
       </form>
-      <div class="mt-4">
+      <div class="mt-4 flex items-center" style="gap:10px; flex-wrap:wrap;">
         <button class="btn btn-primary" id="btn-registrar">↓ Registrar Pallet</button>
+        <span id="selected-import-info" class="text-muted">Nenhuma linha da planilha selecionada.</span>
       </div>
     </div>
 
