@@ -1,13 +1,7 @@
-const REQUIRED_IMPORT_FIELDS = [
-  'nro_pallet', 'qtd_caixas', 'data_embalamento', 'variedade', 'classificacao',
-  'safra', 'embalagem', 'rotulo', 'produtor', 'caixa', 'peso', 'area',
-  'controle', 'mercado', 'temp_entrada', 'tunel', 'boca'
-];
-
 const COLUMN_ALIASES = {
-  nro_pallet: ['número', 'numero', 'nº', 'n°', 'nro', 'pallet', 'nº do pallet'],
+  nro_pallet: ['número', 'numero', 'nº', 'n°', 'nro', 'pallet', 'nº do pallet', 'numero pallet'],
   qtd_caixas: ['qtde. caixas', 'qtde caixas', 'qtd caixas', 'quantidade de caixas', 'caixas'],
-  data_embalamento: ['data de embalamento', 'data embalamento', 'embalamento', 'data embal.'],
+  data_embalamento: ['data de embalamento', 'data embalamento', 'data embal.', 'data embal', 'data emb.', 'data emb', 'embalamento'],
   variedade: ['variedade'],
   classificacao: ['classificação', 'classificacao'],
   safra: ['safra'],
@@ -20,15 +14,28 @@ const COLUMN_ALIASES = {
   peso_raw: ['peso']
 };
 
+const REQUIRED_COLUMNS = [
+  'nro_pallet',
+  'qtd_caixas',
+  'data_embalamento',
+  'variedade',
+  'classificacao',
+  'safra',
+  'etiqueta',
+  'apelido_talhao',
+  'controle'
+];
+
 let importedRows = [];
 let importedFileName = '';
+let selectedImportedRowIndex = null;
 
 function normalizeHeader(value) {
   return String(value || '')
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\\u0300-\\u036f]/g, '')
     .toLowerCase()
-    .replace(/\s+/g, ' ')
+    .replace(/\\s+/g, ' ')
     .trim();
 }
 
@@ -47,10 +54,19 @@ function escapeHtml(value) {
 
 function findColumnKey(headersMap, aliases) {
   for (const alias of aliases) {
-    const key = normalizeHeader(alias);
-    if (headersMap[key] !== undefined) return headersMap[key];
+    const normalized = normalizeHeader(alias);
+    if (headersMap[normalized] !== undefined) return headersMap[normalized];
   }
   return null;
+}
+
+function parseNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') return value;
+  const raw = asText(value);
+  const cleaned = raw.replace(/\\s+/g, '').replace(',', '.');
+  const match = cleaned.match(/-?\\d+(\\.\\d+)?/);
+  return match ? Number(match[0]) : null;
 }
 
 function excelDateToISO(value) {
@@ -58,15 +74,15 @@ function excelDateToISO(value) {
   if (typeof value === 'number' && window.XLSX?.SSF?.parse_date_code) {
     const parsed = XLSX.SSF.parse_date_code(value);
     if (parsed?.y && parsed?.m && parsed?.d) {
-      return `${parsed.y.toString().padStart(4, '0')}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+      return `${String(parsed.y).padStart(4, '0')}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
     }
   }
 
   const raw = asText(value);
   if (!raw) return '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
 
-  const br = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  const br = raw.match(/^(\\d{1,2})[\\/.-](\\d{1,2})[\\/.-](\\d{2,4})$/);
   if (br) {
     const day = br[1].padStart(2, '0');
     const month = br[2].padStart(2, '0');
@@ -74,30 +90,27 @@ function excelDateToISO(value) {
     return `${year}-${month}-${day}`;
   }
 
-  const date = new Date(raw);
-  if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
   return '';
 }
 
-function parseNumber(value) {
-  if (value === null || value === undefined || value === '') return null;
-  if (typeof value === 'number') return value;
-  const normalized = asText(value).replace(/\./g, '').replace(',', '.');
-  const match = normalized.match(/-?\d+(\.\d+)?/);
-  return match ? Number(match[0]) : null;
+function formatIsoDateToBR(value) {
+  if (!value) return '—';
+  const match = String(value).match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+  if (!match) return value;
+  return `${match[3]}/${match[2]}/${match[1]}`;
 }
 
 function normalizeEmbalagem(value) {
-  const txt = normalizeHeader(value).toUpperCase();
-  if (!txt) return '';
-  if (txt.includes('FECHADA')) return 'CUMBUCA FECHADA';
-  if (txt.includes('OPEN TOP') || txt.includes('OPEN')) return 'CUMBUCA ABERTA';
-  if (txt.includes('SACOLA')) return 'SACOLA';
-  return '';
+  const text = normalizeHeader(value).toUpperCase();
+  if (!text) return '';
+  if (text.includes('FECHADA')) return 'CUMBUCA FECHADA';
+  if (text.includes('OPEN TOP') || text.includes('OPEN')) return 'CUMBUCA ABERTA';
+  if (text.includes('SACOLA')) return 'SACOLA';
+  return asText(value);
 }
 
 function normalizeProdutor(value) {
-  const tokens = asText(value).replace(/\s+/g, ' ').split(' ').filter(Boolean);
+  const tokens = asText(value).replace(/\\s+/g, ' ').split(' ').filter(Boolean);
   if (!tokens.length) return '';
   if (tokens.length === 1) return tokens[0];
   return `${tokens[0]} ${tokens[tokens.length - 1]}`;
@@ -106,189 +119,148 @@ function normalizeProdutor(value) {
 function normalizeCaixa(value) {
   const raw = asText(value);
   if (!raw) return '';
-  const match = raw.match(/(?:\bCX\b|\bCAIXA\b)\s*[:\-]?\s*([A-Z0-9./-]+)/i);
+  const match = raw.match(/(?:\\bCX\\b|\\bCAIXA\\b)\\s*[:\\-]?\\s*([A-Z0-9./-]+)/i);
   return match ? match[1].trim() : raw;
 }
 
 function normalizePeso(value) {
   const raw = asText(value);
   if (!raw) return parseNumber(value);
-  const match = raw.match(/(\d+[.,]?\d*)\s*KG\b/i);
+  const match = raw.match(/(\\d+[.,]?\\d*)\\s*KG\\b/i);
   if (match) return Number(match[1].replace(',', '.'));
   return parseNumber(value);
 }
 
 function normalizeMercado(classificacao) {
-  const txt = normalizeHeader(classificacao);
-  return txt.includes('exportacao') ? 'EXTERNO' : 'INTERNO';
+  const text = normalizeHeader(classificacao);
+  return text.includes('exportacao') ? 'EXTERNO' : 'INTERNO';
 }
 
-function validateImportRow(row) {
+function validateImportedRow(row) {
   const missing = [];
-  for (const field of REQUIRED_IMPORT_FIELDS) {
-    const value = row[field];
-    if (value === '' || value === null || value === undefined) missing.push(field);
-  }
+  const requiredDataFields = [
+    'nro_pallet', 'qtd_caixas', 'data_embalamento', 'variedade', 'classificacao',
+    'safra', 'embalagem', 'rotulo', 'produtor', 'caixa', 'peso', 'area',
+    'controle', 'mercado'
+  ];
 
-  if (row.tunel && !['01', '02'].includes(String(row.tunel))) missing.push('tunel');
+  requiredDataFields.forEach(field => {
+    if (row[field] === '' || row[field] === null || row[field] === undefined) {
+      missing.push(field);
+    }
+  });
 
-  if (row.boca !== '' && row.boca !== null && row.boca !== undefined) {
-    const boca = Number(row.boca);
-    if (!Number.isInteger(boca) || boca < 1 || boca > 12) missing.push('boca');
-  }
-
-  row._missing = [...new Set(missing)];
-  row._valid = row._missing.length === 0;
+  row._missing = missing;
+  row._valid = missing.length === 0;
 }
 
-function buildPayload(row) {
-  return {
-    nro_pallet: String(row.nro_pallet).trim(),
-    qtd_caixas: Number(row.qtd_caixas),
-    data_embalamento: row.data_embalamento,
-    variedade: String(row.variedade).trim(),
-    classificacao: String(row.classificacao).trim(),
-    safra: String(row.safra).trim(),
-    embalagem: String(row.embalagem).trim(),
-    rotulo: String(row.rotulo).trim(),
-    produtor: String(row.produtor).trim(),
-    caixa: String(row.caixa).trim(),
-    peso: Number(row.peso),
-    area: String(row.area).trim(),
-    controle: String(row.controle).trim(),
-    mercado: String(row.mercado).trim(),
-    temp_entrada: Number(row.temp_entrada),
-    tunel: String(row.tunel).padStart(2, '0'),
-    boca: Number(row.boca)
-  };
+function updateSelectedInfo() {
+  const label = document.getElementById('selected-import-info');
+  if (selectedImportedRowIndex === null || !importedRows[selectedImportedRowIndex]) {
+    label.textContent = 'Nenhuma linha da planilha selecionada.';
+    return;
+  }
+
+  const row = importedRows[selectedImportedRowIndex];
+  label.textContent = row._saved
+    ? `Linha ${selectedImportedRowIndex + 1} já importada.`
+    : `Linha ${selectedImportedRowIndex + 1} selecionada para entrada manual.`;
 }
 
-function fillFormFromRow(row) {
+function renderImportPreview() {
+  const wrap = document.getElementById('import-preview-wrap');
+  const tbody = document.getElementById('tbody-import-preview');
+  const summary = document.getElementById('import-summary');
+
+  if (!importedRows.length) {
+    wrap.style.display = 'none';
+    summary.textContent = importedFileName ? `Arquivo ${importedFileName} sem linhas válidas para exibição.` : 'Nenhuma planilha carregada.';
+    updateSelectedInfo();
+    return;
+  }
+
+  wrap.style.display = 'block';
+  const pending = importedRows.filter(row => !row._saved).length;
+  const imported = importedRows.filter(row => row._saved).length;
+  summary.textContent = `Arquivo: ${importedFileName} · ${importedRows.length} linha(s) · ${pending} pendente(s) · ${imported} importada(s)`;
+
+  tbody.innerHTML = importedRows.map((row, index) => {
+    const status = row._saved
+      ? '<span class="badge-status badge-livre">Já importado</span>'
+      : row._valid
+        ? '<span class="badge-status badge-warning">Pronto para seleção</span>'
+        : `<span class="badge-status badge-danger">Erro</span><div class="text-muted" style="margin-top:4px; font-size:.75rem;">${escapeHtml(row._missing.join(', '))}</div>`;
+
+    const selectedStyle = index === selectedImportedRowIndex ? 'background:rgba(99,102,241,.12);' : '';
+
+    return `
+      <tr style="${selectedStyle}">
+        <td>${index + 1}</td>
+        <td>${status}</td>
+        <td><strong>${escapeHtml(row.nro_pallet)}</strong></td>
+        <td>${row.qtd_caixas ?? '—'}</td>
+        <td>${escapeHtml(formatIsoDateToBR(row.data_embalamento))}</td>
+        <td>${escapeHtml(row.variedade)}</td>
+        <td>${escapeHtml(row.classificacao)}</td>
+        <td>${escapeHtml(row.embalagem)}</td>
+        <td>${escapeHtml(row.produtor)}</td>
+        <td>${escapeHtml(row.caixa)}</td>
+        <td>${row.peso ?? '—'}${row.peso ? ' kg' : ''}</td>
+        <td>${escapeHtml(row.area)}</td>
+        <td>${escapeHtml(row.controle)}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm btn-usar-import" data-row="${index}" type="button" ${row._saved || !row._valid ? 'disabled' : ''}>↓ Usar</button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  updateSelectedInfo();
+}
+
+function fillFormFromImportedRow(row) {
   const form = document.getElementById('form-recepcao');
-  const payload = buildPayload(row);
+  const payload = {
+    nro_pallet: row.nro_pallet,
+    qtd_caixas: row.qtd_caixas ?? '',
+    data_embalamento: row.data_embalamento,
+    variedade: row.variedade,
+    classificacao: row.classificacao,
+    safra: row.safra,
+    embalagem: row.embalagem,
+    rotulo: row.rotulo,
+    produtor: row.produtor,
+    caixa: row.caixa,
+    peso: row.peso ?? '',
+    area: row.area,
+    controle: row.controle,
+    mercado: row.mercado
+  };
+
   Object.entries(payload).forEach(([key, value]) => {
     const field = form.elements.namedItem(key);
     if (field) field.value = value;
   });
 }
 
-function fieldEditorHtml(rowIndex, field, value) {
-  if (field === 'tunel') {
-    return `
-      <select data-row="${rowIndex}" data-field="${field}" class="import-field-input">
-        <option value="01" ${String(value) === '01' ? 'selected' : ''}>01</option>
-        <option value="02" ${String(value) === '02' ? 'selected' : ''}>02</option>
-      </select>`;
-  }
-
-  if (field === 'mercado') {
-    return `
-      <select data-row="${rowIndex}" data-field="${field}" class="import-field-input">
-        <option value="EXTERNO" ${String(value) === 'EXTERNO' ? 'selected' : ''}>EXTERNO</option>
-        <option value="INTERNO" ${String(value) === 'INTERNO' ? 'selected' : ''}>INTERNO</option>
-      </select>`;
-  }
-
-  if (field === 'embalagem') {
-    return `
-      <select data-row="${rowIndex}" data-field="${field}" class="import-field-input">
-        <option value="">Selecione</option>
-        <option value="CUMBUCA FECHADA" ${String(value) === 'CUMBUCA FECHADA' ? 'selected' : ''}>CUMBUCA FECHADA</option>
-        <option value="CUMBUCA ABERTA" ${String(value) === 'CUMBUCA ABERTA' ? 'selected' : ''}>CUMBUCA ABERTA</option>
-        <option value="SACOLA" ${String(value) === 'SACOLA' ? 'selected' : ''}>SACOLA</option>
-      </select>`;
-  }
-
-  const type = ['qtd_caixas', 'peso', 'temp_entrada', 'boca'].includes(field)
-    ? 'number'
-    : field === 'data_embalamento'
-      ? 'date'
-      : 'text';
-  const step = field === 'peso' ? '0.01' : field === 'temp_entrada' ? '0.1' : '1';
-  const min = field === 'boca' ? '1' : '';
-  const max = field === 'boca' ? '12' : '';
-
-  return `<input data-row="${rowIndex}" data-field="${field}" class="import-field-input" type="${type}" value="${escapeHtml(value)}" ${type === 'number' ? `step="${step}"` : ''} ${min ? `min="${min}"` : ''} ${max ? `max="${max}"` : ''}>`;
-}
-
-function renderImportPreview() {
-  const tbody = document.getElementById('tbody-import-preview');
-  const wrap = document.getElementById('import-preview-wrap');
-  const summary = document.getElementById('import-summary');
-
-  if (!importedRows.length) {
-    wrap.style.display = 'none';
-    summary.textContent = importedFileName ? `Arquivo ${importedFileName} sem linhas válidas para exibição.` : 'Nenhuma planilha carregada.';
-    return;
-  }
-
-  wrap.style.display = 'block';
-  const validCount = importedRows.filter(row => row._valid && !row._saved).length;
-  const savedCount = importedRows.filter(row => row._saved).length;
-  summary.textContent = `Arquivo: ${importedFileName} · ${importedRows.length} linha(s) · ${validCount} pronta(s) · ${savedCount} importada(s)`;
-
-  tbody.innerHTML = importedRows.map((row, index) => {
-    const status = row._saved
-      ? '<span class="badge-status badge-livre">Importado</span>'
-      : row._valid
-        ? '<span class="badge-status badge-ocupada">Pronto</span>'
-        : `<span class="badge-status badge-warning">Pendente</span><div class="text-muted" style="margin-top:4px; font-size:.75rem;">${escapeHtml(row._missing.join(', '))}</div>`;
-
-    return `
-      <tr>
-        <td>${index + 1}</td>
-        <td>${status}</td>
-        <td>${fieldEditorHtml(index, 'nro_pallet', row.nro_pallet)}</td>
-        <td>${fieldEditorHtml(index, 'qtd_caixas', row.qtd_caixas)}</td>
-        <td>${fieldEditorHtml(index, 'data_embalamento', row.data_embalamento)}</td>
-        <td>${fieldEditorHtml(index, 'variedade', row.variedade)}</td>
-        <td>${fieldEditorHtml(index, 'classificacao', row.classificacao)}</td>
-        <td>${fieldEditorHtml(index, 'safra', row.safra)}</td>
-        <td>${fieldEditorHtml(index, 'embalagem', row.embalagem)}</td>
-        <td>${fieldEditorHtml(index, 'rotulo', row.rotulo)}</td>
-        <td>${fieldEditorHtml(index, 'produtor', row.produtor)}</td>
-        <td>${fieldEditorHtml(index, 'caixa', row.caixa)}</td>
-        <td>${fieldEditorHtml(index, 'peso', row.peso ?? '')}</td>
-        <td>${fieldEditorHtml(index, 'area', row.area)}</td>
-        <td>${fieldEditorHtml(index, 'controle', row.controle)}</td>
-        <td>${fieldEditorHtml(index, 'mercado', row.mercado)}</td>
-        <td>${fieldEditorHtml(index, 'temp_entrada', row.temp_entrada ?? '')}</td>
-        <td>${fieldEditorHtml(index, 'tunel', row.tunel || '01')}</td>
-        <td>${fieldEditorHtml(index, 'boca', row.boca ?? '')}</td>
-        <td style="white-space:nowrap;">
-          <button class="btn btn-ghost btn-sm btn-usar-import" data-row="${index}" type="button">Usar</button>
-          <button class="btn btn-primary btn-sm btn-registrar-linha" data-row="${index}" type="button" ${row._saved ? 'disabled' : ''}>Registrar</button>
-        </td>
-      </tr>`;
-  }).join('');
-}
-
-function updateImportedRow(rowIndex, field, value) {
-  const row = importedRows[rowIndex];
-  if (!row) return;
-
-  if (['qtd_caixas', 'peso', 'temp_entrada', 'boca'].includes(field)) {
-    row[field] = value === '' ? '' : Number(value);
-  } else {
-    row[field] = value;
-  }
-
-  if (field === 'classificacao') row.mercado = normalizeMercado(value);
-  validateImportRow(row);
+function clearImportState() {
+  importedRows = [];
+  importedFileName = '';
+  selectedImportedRowIndex = null;
+  document.getElementById('file-planilha').value = '';
+  document.getElementById('import-errors').textContent = '';
   renderImportPreview();
 }
 
 function parseWorksheetRows(rows) {
   if (!rows.length) throw new Error('A planilha está vazia.');
 
-  const rawHeaders = rows[0].map(value => asText(value));
+  const headers = rows[0].map(cell => asText(cell));
   const headersMap = {};
-  rawHeaders.forEach((header, idx) => {
-    headersMap[normalizeHeader(header)] = idx;
+  headers.forEach((header, index) => {
+    headersMap[normalizeHeader(header)] = index;
   });
 
-  const requiredColumns = ['nro_pallet', 'qtd_caixas', 'data_embalamento', 'variedade', 'classificacao', 'safra', 'etiqueta', 'apelido_talhao', 'controle'];
-  const missingColumns = requiredColumns.filter(key => findColumnKey(headersMap, COLUMN_ALIASES[key]) === null);
+  const missingColumns = REQUIRED_COLUMNS.filter(key => findColumnKey(headersMap, COLUMN_ALIASES[key]) === null);
   if (missingColumns.length) {
     throw new Error(`Colunas obrigatórias não encontradas: ${missingColumns.join(', ')}`);
   }
@@ -298,16 +270,11 @@ function parseWorksheetRows(rows) {
     col[key] = findColumnKey(headersMap, aliases);
   });
 
-  const defaultTemp = Number(document.getElementById('import-default-temp').value || 0);
-  const defaultTunel = document.getElementById('import-default-tunel').value || '01';
-  const defaultBoca = Number(document.getElementById('import-default-boca').value || 1);
-
   importedRows = rows.slice(1)
     .filter(row => row.some(cell => asText(cell) !== ''))
-    .map((row, index) => {
+    .map((row) => {
       const classificacao = asText(row[col.classificacao]);
       const parsed = {
-        _sheetRow: index + 2,
         _saved: false,
         nro_pallet: asText(row[col.nro_pallet]),
         qtd_caixas: parseNumber(row[col.qtd_caixas]),
@@ -322,15 +289,13 @@ function parseWorksheetRows(rows) {
         peso: normalizePeso(col.peso_raw !== null ? row[col.peso_raw] : ''),
         area: asText(row[col.apelido_talhao]),
         controle: asText(row[col.controle]),
-        mercado: normalizeMercado(classificacao),
-        temp_entrada: defaultTemp,
-        tunel: defaultTunel,
-        boca: defaultBoca
+        mercado: normalizeMercado(classificacao)
       };
-      validateImportRow(parsed);
+      validateImportedRow(parsed);
       return parsed;
     });
 
+  selectedImportedRowIndex = null;
   renderImportPreview();
 }
 
@@ -342,96 +307,36 @@ async function handlePlanilha(file) {
   document.getElementById('import-errors').textContent = '';
 
   const reader = new FileReader();
-  reader.onload = event => {
+  reader.onload = (event) => {
     try {
       const data = event.target.result;
       const workbook = XLSX.read(data, { type: 'array' });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
       parseWorksheetRows(rows);
       showToast(`Planilha ${file.name} carregada com sucesso.`, 'success');
     } catch (error) {
       importedRows = [];
+      selectedImportedRowIndex = null;
       renderImportPreview();
       document.getElementById('import-errors').textContent = error.message;
       showToast(`Erro ao processar planilha: ${error.message}`, 'error');
     }
   };
+
   reader.readAsArrayBuffer(file);
-}
-
-function clearImportState() {
-  importedRows = [];
-  importedFileName = '';
-  document.getElementById('file-planilha').value = '';
-  document.getElementById('import-errors').textContent = '';
-  renderImportPreview();
-}
-
-async function registerImportedRow(rowIndex) {
-  const row = importedRows[rowIndex];
-  if (!row) return;
-
-  validateImportRow(row);
-  if (!row._valid) {
-    renderImportPreview();
-    showToast(`Linha ${rowIndex + 1} ainda possui campos pendentes.`, 'error');
-    return;
-  }
-
-  try {
-    const payload = buildPayload(row);
-    const created = await api.post('/recepcao/', payload);
-    row._saved = true;
-    renderImportPreview();
-    fillFormFromRow(row);
-    await loadPallets();
-    showToast(`Linha ${rowIndex + 1} registrada como pallet ${created.id}.`, 'success');
-  } catch (error) {
-    showToast(`Erro ao registrar linha ${rowIndex + 1}: ${error.message}`, 'error');
-  }
-}
-
-async function registerAllImportedRows() {
-  const pending = importedRows
-    .map((row, index) => ({ row, index }))
-    .filter(item => item.row._valid && !item.row._saved);
-
-  if (!pending.length) {
-    showToast('Não há linhas válidas pendentes para registrar.', 'info');
-    return;
-  }
-
-  for (const item of pending) {
-    await registerImportedRow(item.index);
-  }
-}
-
-function applyDefaultsToImportedRows() {
-  const defaultTemp = document.getElementById('import-default-temp').value;
-  const defaultTunel = document.getElementById('import-default-tunel').value;
-  const defaultBoca = document.getElementById('import-default-boca').value;
-
-  importedRows.forEach(row => {
-    if (row.temp_entrada === '' || row.temp_entrada === null || row.temp_entrada === undefined) row.temp_entrada = Number(defaultTemp || 0);
-    if (!row.tunel) row.tunel = defaultTunel || '01';
-    if (row.boca === '' || row.boca === null || row.boca === undefined) row.boca = Number(defaultBoca || 1);
-    validateImportRow(row);
-  });
-
-  renderImportPreview();
-  showToast('Padrões aplicados nas linhas com campos vazios.', 'success');
 }
 
 async function loadPallets() {
   try {
     const pallets = await api.get('/recepcao/');
     const tbody = document.getElementById('tbody-recepcao');
+
     if (!pallets.length) {
       tbody.innerHTML = '<tr><td colspan="8" class="text-muted">Nenhum pallet em recepção.</td></tr>';
       return;
     }
+
     tbody.innerHTML = pallets.map(p => `
       <tr>
         <td><strong>${escapeHtml(p.id)}</strong>${p.is_adicao ? ' <span class="badge-status badge-warning" style="font-size:.65rem">ADIÇÃO</span>' : ''}</td>
@@ -453,6 +358,7 @@ async function loadPallets() {
 async function rollback(encodedId) {
   const id = decodeURIComponent(encodedId);
   if (!confirm(`Excluir permanentemente o pallet ${id}?`)) return;
+
   try {
     await api.delete(`/recepcao/${encodeURIComponent(id)}/rollback`);
     showToast(`Pallet ${id} excluído.`, 'success');
@@ -466,14 +372,24 @@ document.getElementById('btn-registrar').addEventListener('click', async () => {
   const form = document.getElementById('form-recepcao');
   const fd = new FormData(form);
   const body = Object.fromEntries(fd.entries());
+
   body.qtd_caixas = Number(body.qtd_caixas);
   body.peso = Number(body.peso);
   body.temp_entrada = Number(body.temp_entrada);
   body.boca = Number(body.boca);
+
   try {
-    const p = await api.post('/recepcao/', body);
-    showToast(`Pallet ${p.id} registrado!${p.is_adicao ? ' (ADIÇÃO)' : ''}`, 'success');
+    const created = await api.post('/recepcao/', body);
+    showToast(`Pallet ${created.id} registrado!${created.is_adicao ? ' (ADIÇÃO)' : ''}`, 'success');
+
+    if (selectedImportedRowIndex !== null && importedRows[selectedImportedRowIndex]) {
+      importedRows[selectedImportedRowIndex]._saved = true;
+      renderImportPreview();
+    }
+
     form.reset();
+    selectedImportedRowIndex = null;
+    updateSelectedInfo();
     loadPallets();
   } catch (e) {
     showToast(e.message, 'error');
@@ -494,56 +410,42 @@ document.getElementById('drop-planilha').addEventListener('click', () => {
   document.getElementById('file-planilha').click();
 });
 
-document.getElementById('drop-planilha').addEventListener('dragover', event => {
+document.getElementById('drop-planilha').addEventListener('dragover', (event) => {
   event.preventDefault();
   event.currentTarget.style.borderColor = 'var(--accent)';
 });
 
-document.getElementById('drop-planilha').addEventListener('dragleave', event => {
+document.getElementById('drop-planilha').addEventListener('dragleave', (event) => {
   event.preventDefault();
   event.currentTarget.style.borderColor = 'var(--border)';
 });
 
-document.getElementById('drop-planilha').addEventListener('drop', async event => {
+document.getElementById('drop-planilha').addEventListener('drop', async (event) => {
   event.preventDefault();
   event.currentTarget.style.borderColor = 'var(--border)';
   const file = event.dataTransfer.files?.[0];
   await handlePlanilha(file);
 });
 
-document.getElementById('file-planilha').addEventListener('change', async event => {
+document.getElementById('file-planilha').addEventListener('change', async (event) => {
   const file = event.target.files?.[0];
   await handlePlanilha(file);
 });
 
 document.getElementById('btn-limpar-importacao').addEventListener('click', clearImportState);
-document.getElementById('btn-aplicar-padroes').addEventListener('click', applyDefaultsToImportedRows);
-document.getElementById('btn-registrar-importaveis').addEventListener('click', registerAllImportedRows);
 
-document.getElementById('tbody-import-preview').addEventListener('input', event => {
-  const target = event.target;
-  if (!target.matches('.import-field-input')) return;
-  updateImportedRow(Number(target.dataset.row), target.dataset.field, target.value);
-});
+document.getElementById('tbody-import-preview').addEventListener('click', (event) => {
+  const button = event.target.closest('.btn-usar-import');
+  if (!button) return;
 
-document.getElementById('tbody-import-preview').addEventListener('change', event => {
-  const target = event.target;
-  if (!target.matches('.import-field-input')) return;
-  updateImportedRow(Number(target.dataset.row), target.dataset.field, target.value);
-});
+  const rowIndex = Number(button.dataset.row);
+  const row = importedRows[rowIndex];
+  if (!row || row._saved || !row._valid) return;
 
-document.getElementById('tbody-import-preview').addEventListener('click', async event => {
-  const useButton = event.target.closest('.btn-usar-import');
-  if (useButton) {
-    fillFormFromRow(importedRows[Number(useButton.dataset.row)]);
-    showToast(`Linha ${Number(useButton.dataset.row) + 1} aplicada ao formulário.`, 'success');
-    return;
-  }
-
-  const registerButton = event.target.closest('.btn-registrar-linha');
-  if (registerButton) {
-    await registerImportedRow(Number(registerButton.dataset.row));
-  }
+  selectedImportedRowIndex = rowIndex;
+  fillFormFromImportedRow(row);
+  renderImportPreview();
+  showToast(`Linha ${rowIndex + 1} aplicada ao formulário para conferência e entrada.`, 'success');
 });
 
 renderImportPreview();
