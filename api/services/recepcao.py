@@ -5,8 +5,11 @@ Regras de negócio da Recepção.
 - Ao registrar, pallet já entra em fase 'resfriamento' automaticamente.
 - Sessão do túnel é criada automaticamente se não houver uma ativa.
 - Rollback é a única forma de excluir um pallet do sistema.
+- areas_controles: lista de áreas/controles com distribuição proporcional de caixas.
+  A soma de qtd_caixas deve ser igual ao total de caixas do pallet (validado no schema).
+  Coluna legada `area` e `controle` são preenchidas com o primeiro item da lista.
 """
-import re
+import json
 from datetime import datetime
 from fastapi import HTTPException
 from api.db.client import get_db
@@ -58,11 +61,26 @@ def registrar(body: PalletCreate) -> dict:
     # Garante sessão ativa para o túnel — cria se não existir
     sessao_id = _garantir_sessao_ativa(body.tunel, db, now)
 
+    # Serializa areas_controles para JSONB
+    areas_list = [item.model_dump() for item in body.areas_controles]
+
+    # Colunas legadas: primeiro item da lista (retrocompatibilidade)
+    first = body.areas_controles[0]
+
+    # Exclui areas_controles do dump para inserção manual
+    body_dict = body.model_dump(exclude={"areas_controles"})
+
     row = {
         "id": pallet_id,
-        **body.model_dump(),
+        **body_dict,
         "data_embalamento": body.data_embalamento.isoformat(),
-        "fase": "resfriamento",   # entra direto em resfriamento
+        # Coluna legada — mantida para módulos que ainda lêem area/controle diretamente
+        "area": first.area,
+        "controle": first.controle,
+        # Nova coluna JSONB — armazena rastreabilidade proporcional completa
+        # Requer migration: ALTER TABLE pallets ADD COLUMN areas_controles JSONB;
+        "areas_controles": json.dumps(areas_list),
+        "fase": "resfriamento",
         "is_adicao": is_adicao,
         "created_at": now,
         "updated_at": now,
@@ -73,17 +91,27 @@ def registrar(body: PalletCreate) -> dict:
         "pallet_id": pallet_id,
         "acao": "recepcao",
         "fase_nova": "resfriamento",
-        "dados": {"is_adicao": is_adicao, "sessao_id": sessao_id},
+        "dados": {
+            "is_adicao": is_adicao,
+            "sessao_id": sessao_id,
+            "areas_controles": areas_list,
+        },
         "created_at": now,
     }).execute()
 
-    return db.table("pallets").select("*").eq("id", pallet_id).execute().data[0]
+    result = db.table("pallets").select("*").eq("id", pallet_id).execute().data[0]
+
+    # Desserializa areas_controles se vier como string do banco
+    if result.get("areas_controles") and isinstance(result["areas_controles"], str):
+        result["areas_controles"] = json.loads(result["areas_controles"])
+
+    return result
 
 
 def listar() -> list:
     """Lista pallets em recepção (compatibilidade — agora entram direto em resfriamento)."""
     db = get_db()
-    return (
+    rows = (
         db.table("pallets")
         .select("*")
         .in_("fase", ["recepcao", "resfriamento"])
@@ -91,12 +119,21 @@ def listar() -> list:
         .execute()
         .data
     )
+    for row in rows:
+        if row.get("areas_controles") and isinstance(row["areas_controles"], str):
+            row["areas_controles"] = json.loads(row["areas_controles"])
+    return rows
 
 
 def buscar(pallet_id: str) -> dict | None:
     db = get_db()
     rows = db.table("pallets").select("*").eq("id", pallet_id).execute().data
-    return rows[0] if rows else None
+    if not rows:
+        return None
+    row = rows[0]
+    if row.get("areas_controles") and isinstance(row["areas_controles"], str):
+        row["areas_controles"] = json.loads(row["areas_controles"])
+    return row
 
 
 def rollback(pallet_id: str) -> dict:
@@ -106,7 +143,11 @@ def rollback(pallet_id: str) -> dict:
         raise HTTPException(404, "Pallet não encontrado")
     pallet = rows[0]
     if pallet["fase"] not in ("recepcao", "resfriamento"):
-        raise HTTPException(400, f"Rollback só é possível para pallets em recepção ou resfriamento. Fase atual: {pallet['fase']}")
+        raise HTTPException(
+            400,
+            f"Rollback só é possível para pallets em recepção ou resfriamento. "
+            f"Fase atual: {pallet['fase']}"
+        )
 
     db.table("pallets").delete().eq("id", pallet_id).execute()
     db.table("historico").insert({
