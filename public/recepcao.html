@@ -26,6 +26,7 @@
     <a href="historico.html"><span class="icon">🕓</span> Histórico</a>
   </nav>
 </aside>
+
 <div id="main">
   <header>
     <h1>Recepção</h1>
@@ -33,46 +34,32 @@
   </header>
   <div class="content">
 
+    <!-- Importador Excel -->
     <div class="card">
-      <div class="flex justify-between items-center" style="margin-bottom:12px; gap:12px; flex-wrap:wrap;">
+      <div class="flex justify-between items-center" style="margin-bottom:12px;gap:12px;flex-wrap:wrap;">
         <div class="card-title" style="margin:0">Importar Planilha Excel</div>
         <button class="btn btn-ghost btn-sm" id="btn-toggle-importador" type="button">▴ Recolher</button>
       </div>
-
       <div id="importador-wrapper">
         <input id="file-planilha" type="file" accept=".csv,.xls,.xlsx" hidden>
-
-        <div id="drop-planilha" style="border:2px dashed var(--border); border-radius:12px; padding:28px; text-align:center; background:rgba(255,255,255,.02); cursor:pointer; margin-bottom:16px;">
-          <div style="font-size:42px; margin-bottom:8px;">📄</div>
-          <div style="font-weight:600; margin-bottom:6px;">Arraste o arquivo Excel aqui ou clique para selecionar</div>
+        <div id="drop-planilha" style="border:2px dashed var(--border);border-radius:12px;padding:28px;text-align:center;background:rgba(255,255,255,.02);cursor:pointer;margin-bottom:16px;">
+          <div style="font-size:42px;margin-bottom:8px;">📄</div>
+          <div style="font-weight:600;margin-bottom:6px;">Arraste o arquivo Excel aqui ou clique para selecionar</div>
           <div class="text-muted">Formatos aceitos: .xlsx · .xls · .csv</div>
         </div>
-
-        <div class="flex items-center" style="gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+        <div class="flex items-center" style="gap:10px;flex-wrap:wrap;margin-bottom:12px;">
           <button class="btn btn-danger" id="btn-limpar-importacao" type="button">Limpar importação</button>
           <span id="import-summary" class="text-muted">Nenhuma planilha carregada.</span>
         </div>
-
         <div id="import-errors" class="text-muted" style="margin-bottom:12px;"></div>
-
         <div class="table-wrap" id="import-preview-wrap" style="display:none;">
           <table>
             <thead>
               <tr>
-                <th>#</th>
-                <th>Status</th>
-                <th>Pallet</th>
-                <th>Caixas</th>
-                <th>Data Embal.</th>
-                <th>Variedade</th>
-                <th>Classificação</th>
-                <th>Embalagem</th>
-                <th>Produtor</th>
-                <th>Caixa</th>
-                <th>Peso</th>
-                <th>Área</th>
-                <th>Controle</th>
-                <th>Ações</th>
+                <th>#</th><th>Status</th><th>Pallet</th><th>Caixas</th>
+                <th>Data Embal.</th><th>Variedade</th><th>Classificação</th>
+                <th>Embalagem</th><th>Produtor</th><th>Caixa</th><th>Peso</th>
+                <th>Área</th><th>Controle</th><th>Ações</th>
               </tr>
             </thead>
             <tbody id="tbody-import-preview"></tbody>
@@ -81,38 +68,96 @@
       </div>
     </div>
 
+    <!-- Formulário -->
     <div class="card">
       <div class="card-title">Registrar Pallet</div>
       <form id="form-recepcao" class="form-grid">
         <div class="field"><label>Nº Pallet</label><input name="nro_pallet" required></div>
-        <div class="field"><label>Qtd Caixas</label><input name="qtd_caixas" type="number" required></div>
+        <div class="field"><label>Qtd Caixas</label><input name="qtd_caixas" type="number" min="1" required></div>
         <div class="field"><label>Data Embalamento</label><input name="data_embalamento" type="date" required></div>
-        <div class="field"><label>Variedade</label><input name="variedade" required></div>
-        <div class="field"><label>Classificação</label><input name="classificacao" required></div>
         <div class="field"><label>Safra</label><input name="safra" required></div>
-        <div class="field"><label>Embalagem</label><input name="embalagem" required></div>
         <div class="field"><label>Rótulo</label><input name="rotulo" required></div>
         <div class="field"><label>Produtor</label><input name="produtor" required></div>
-        <div class="field"><label>Caixa</label><input name="caixa" required></div>
-        <div class="field"><label>Peso (kg)</label><input name="peso" type="number" step="0.01" required></div>
-        <div class="field"><label>Área</label><input name="area" required></div>
-        <div class="field"><label>Controle</label><input name="controle" required></div>
-        <div class="field"><label>Mercado</label><input name="mercado" required></div>
         <div class="field"><label>Temp. Entrada (°C)</label><input name="temp_entrada" type="number" step="0.1" required></div>
-        <div class="field"><label>Túnel</label>
-          <select name="tunel" required>
-            <option value="01">Túnel 01</option>
-            <option value="02">Túnel 02</option>
+        <div class="field">
+          <label>Variedade</label>
+          <select name="variedade" required>
+            <option value="" disabled selected>Selecionar…</option>
+            <option>ARRA 15</option><option>BEBOP</option><option>CHERRY CRUSH</option>
+            <option>COTTON CANDY</option><option>RUGBY</option><option>SUGAR CRISP</option><option>TIMPSON</option>
           </select>
         </div>
-        <div class="field"><label>Boca (1-12)</label><input name="boca" type="number" min="1" max="12" required></div>
+        <div class="field">
+          <label>Classificação</label>
+          <select name="classificacao" required>
+            <option value="" disabled selected>Selecionar…</option>
+            <option>BAMBINOS</option><option>CAT2</option><option>EXPORTAÇÃO</option>
+            <option>FRUTIBRAS</option><option>GOOD</option><option>SABOROSA</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Embalagem</label>
+          <select name="embalagem" required>
+            <option value="" disabled selected>Selecionar…</option>
+            <option>CUMBUCA ABERTA</option><option>CUMBUCA FECHADA</option><option>SACOLA</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Caixa</label>
+          <select name="caixa" required>
+            <option value="" disabled selected>Selecionar…</option>
+            <option>FRUTIBRAS</option><option>IBACEM</option><option>OGL</option><option>PRETA</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Peso (kg)</label>
+          <select name="peso" required>
+            <option value="" disabled selected>Selecionar…</option>
+            <option value="4">4 kg</option><option value="4.5">4,5 kg</option>
+            <option value="5">5 kg</option><option value="8">8 kg</option><option value="8.2">8,2 kg</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Mercado</label>
+          <select name="mercado" required>
+            <option value="" disabled selected>Selecionar…</option>
+            <option>EXTERNO</option><option>INTERNO</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Túnel</label>
+          <select name="tunel" required>
+            <option value="" disabled selected>Selecionar…</option>
+            <option value="01">Túnel 01</option><option value="02">Túnel 02</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Boca</label>
+          <select name="boca" required>
+            <option value="" disabled selected>Selecionar…</option>
+            <option value="1">Boca 1</option><option value="2">Boca 2</option><option value="3">Boca 3</option>
+            <option value="4">Boca 4</option><option value="5">Boca 5</option><option value="6">Boca 6</option>
+            <option value="7">Boca 7</option><option value="8">Boca 8</option><option value="9">Boca 9</option>
+            <option value="10">Boca 10</option><option value="11">Boca 11</option><option value="12">Boca 12</option>
+          </select>
+        </div>
       </form>
-      <div class="mt-4 flex items-center" style="gap:10px; flex-wrap:wrap;">
+
+      <!-- Área / Controle dinâmico -->
+      <div class="section-divider">
+        <div class="section-label-inline">Rastreabilidade por Talhão</div>
+        <div id="ac-list" class="ac-list"></div>
+        <button type="button" class="ac-add-btn" id="btn-add-ac">＋ Adicionar Área / Controle</button>
+        <div id="dist-status" class="dist-status"></div>
+      </div>
+
+      <div class="mt-4 flex items-center" style="gap:10px;flex-wrap:wrap;">
         <button class="btn btn-primary" id="btn-registrar">↓ Registrar Pallet</button>
         <span id="selected-import-info" class="text-muted">Nenhuma linha da planilha selecionada.</span>
       </div>
     </div>
 
+    <!-- Listagem -->
     <div class="card">
       <div class="flex justify-between items-center" style="margin-bottom:12px">
         <div class="card-title" style="margin:0">Pallets em Recepção</div>
@@ -133,6 +178,7 @@
 
   </div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="js/api.js"></script>
 <script src="js/recepcao.js"></script>
