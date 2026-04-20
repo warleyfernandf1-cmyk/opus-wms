@@ -2,6 +2,8 @@
 Regras de negócio da Recepção.
 - ID único: nunca repete numeração.
 - Conflito → sufixo A-1, A-2, etc.
+- Ao registrar, pallet já entra em fase 'resfriamento' automaticamente.
+- Sessão do túnel é criada automaticamente se não houver uma ativa.
 - Rollback é a única forma de excluir um pallet do sistema.
 """
 import re
@@ -15,10 +17,8 @@ def _gerar_id(nro_pallet: str, db) -> str:
     base = nro_pallet.strip()
     existing = db.table("pallets").select("id").like("id", f"{base}%").execute().data
     ids = {r["id"] for r in existing}
-
     if base not in ids:
         return base
-
     counter = 1
     while True:
         candidate = f"{base}-A-{counter}"
@@ -27,17 +27,42 @@ def _gerar_id(nro_pallet: str, db) -> str:
         counter += 1
 
 
+def _garantir_sessao_ativa(tunel: str, db, now: str) -> str:
+    """
+    Retorna o ID da sessão ativa do túnel.
+    Cria uma nova sessão automaticamente se não houver nenhuma ativa.
+    """
+    ativas = (
+        db.table("sessoes_resfriamento")
+        .select("id")
+        .eq("tunel", tunel)
+        .eq("status", "ativa")
+        .execute()
+        .data
+    )
+    if ativas:
+        return ativas[0]["id"]
+
+    row = {"tunel": tunel, "iniciado_em": now, "status": "ativa"}
+    result = db.table("sessoes_resfriamento").insert(row).execute().data[0]
+    return result["id"]
+
+
 def registrar(body: PalletCreate) -> dict:
     db = get_db()
     pallet_id = _gerar_id(body.nro_pallet, db)
     is_adicao = "-A-" in pallet_id
 
     now = datetime.utcnow().isoformat()
+
+    # Garante sessão ativa para o túnel — cria se não existir
+    sessao_id = _garantir_sessao_ativa(body.tunel, db, now)
+
     row = {
         "id": pallet_id,
         **body.model_dump(),
         "data_embalamento": body.data_embalamento.isoformat(),
-        "fase": "recepcao",
+        "fase": "resfriamento",   # entra direto em resfriamento
         "is_adicao": is_adicao,
         "created_at": now,
         "updated_at": now,
@@ -47,8 +72,8 @@ def registrar(body: PalletCreate) -> dict:
     db.table("historico").insert({
         "pallet_id": pallet_id,
         "acao": "recepcao",
-        "fase_nova": "recepcao",
-        "dados": {"is_adicao": is_adicao},
+        "fase_nova": "resfriamento",
+        "dados": {"is_adicao": is_adicao, "sessao_id": sessao_id},
         "created_at": now,
     }).execute()
 
@@ -56,8 +81,16 @@ def registrar(body: PalletCreate) -> dict:
 
 
 def listar() -> list:
+    """Lista pallets em recepção (compatibilidade — agora entram direto em resfriamento)."""
     db = get_db()
-    return db.table("pallets").select("*").eq("fase", "recepcao").order("created_at", desc=True).execute().data
+    return (
+        db.table("pallets")
+        .select("*")
+        .in_("fase", ["recepcao", "resfriamento"])
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
 
 
 def buscar(pallet_id: str) -> dict | None:
@@ -72,14 +105,14 @@ def rollback(pallet_id: str) -> dict:
     if not rows:
         raise HTTPException(404, "Pallet não encontrado")
     pallet = rows[0]
-    if pallet["fase"] != "recepcao":
-        raise HTTPException(400, f"Rollback na recepção só é possível para pallets na fase 'recepcao'. Fase atual: {pallet['fase']}")
+    if pallet["fase"] not in ("recepcao", "resfriamento"):
+        raise HTTPException(400, f"Rollback só é possível para pallets em recepção ou resfriamento. Fase atual: {pallet['fase']}")
 
     db.table("pallets").delete().eq("id", pallet_id).execute()
     db.table("historico").insert({
         "pallet_id": pallet_id,
         "acao": "rollback_recepcao",
-        "fase_anterior": "recepcao",
+        "fase_anterior": pallet["fase"],
         "dados": {"motivo": "exclusão via rollback"},
         "created_at": datetime.utcnow().isoformat(),
     }).execute()
