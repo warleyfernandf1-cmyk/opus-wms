@@ -1,22 +1,23 @@
 /**
  * resfriamento.js
  *
- * Regras:
- * - Pallets entram em resfriamento automaticamente pela Recepção.
- * - Fonte da verdade: banco. temp_saida no pallet = temperatura registrada.
- * - Salvar temperatura: persiste imediatamente via POST /resfriamento/pallet/{id}/temp.
- * - Criar OA: modal com multi-select de pallets em resfriamento → POST /resfriamento/oa.
- * - Concluir sessão: independente da OA.
- * - OAs listadas com pallets vinculados.
+ * Fluxo:
+ * 1. Pallets entram em resfriamento automaticamente pela Recepção.
+ *    Sessão do túnel criada automaticamente ao registrar primeiro pallet.
+ * 2. Operador registra temperatura de polpa por pallet (persiste imediatamente).
+ * 3. Operador encerra sessão — apenas registra o fim do giro, NÃO move pallets.
+ * 4. Pallets sem OA ficam em "Aguardando vínculo a OA".
+ * 5. Operador cria OA selecionando pallets.
+ * 6. Operador executa OA — backend valida temps + sessão encerrada → move para armazenamento.
  */
 
-/* ─── estado global ─────────────────────────────────────────── */
+/* ─── estado ────────────────────────────────────────────────── */
 let tunelAtivo = '01';
 let palletSelecionadoId = null;
 let dadosTuneis = {};
 let sessaoAtiva = null;
-let modalPallets = [];       // pallets disponíveis no modal
-let modalSelecionados = new Set(); // ids selecionados no modal
+let modalPallets = [];
+let modalSelecionados = new Set();
 
 /* ─── helpers ───────────────────────────────────────────────── */
 
@@ -45,7 +46,7 @@ function renderBocas() {
 
   for (let b = 1; b <= 12; b++) {
     const pallets = bocas[String(b)] || [];
-    if (pallets.length === 0) {
+    if (!pallets.length) {
       cards.push(`<div class="boca-card">
         <span class="boca-num">Boca ${b}</span>
         <span class="boca-vazia">Vazia</span>
@@ -66,15 +67,15 @@ function renderBocas() {
     }
   }
   grid.innerHTML = cards.join('');
-  atualizarConcluirBar();
+  atualizarEncerrarBar();
 }
 
-/* ─── barra concluir sessão ─────────────────────────────────── */
+/* ─── barra encerrar sessão ─────────────────────────────────── */
 
-function atualizarConcluirBar() {
-  const bar = document.getElementById('concluir-bar');
-  const btn = document.getElementById('btn-concluir-sessao');
-  const info = document.getElementById('concluir-info');
+function atualizarEncerrarBar() {
+  const bar = document.getElementById('encerrar-bar');
+  const btn = document.getElementById('btn-encerrar-sessao');
+  const info = document.getElementById('encerrar-info');
   const todos = palletsDoTunel();
 
   if (!sessaoAtiva || todos.length === 0) { bar.style.display='none'; return; }
@@ -85,7 +86,7 @@ function atualizarConcluirBar() {
   const ok = comTemp === total;
 
   info.innerHTML = ok
-    ? `<span>${total}/${total}</span> pallets com temperatura — pronto para concluir`
+    ? `<span>${total}/${total}</span> pallets com temperatura — pronto para encerrar sessão`
     : `<span>${comTemp}/${total}</span> pallets com temperatura registrada`;
   btn.disabled = !ok;
 }
@@ -103,10 +104,45 @@ async function renderSessaoBar() {
     remessa = todas.filter(s => s.iniciado_em?.startsWith(hoje)).length;
   } catch(_) {}
 
-  const criada = sessaoAtiva.iniciado_em ? new Date(sessaoAtiva.iniciado_em).toLocaleString('pt-BR') : '—';
+  const criada = sessaoAtiva.iniciado_em
+    ? new Date(sessaoAtiva.iniciado_em).toLocaleString('pt-BR') : '—';
   document.getElementById('sessao-label').textContent = labelSessao(tunelAtivo, remessa);
-  document.getElementById('sessao-info').textContent = `Criada em ${criada} · Pallets: ${palletsDoTunel().length}`;
+  document.getElementById('sessao-info').textContent =
+    `Criada em ${criada} · Pallets: ${palletsDoTunel().length}`;
   bar.style.display = 'flex';
+}
+
+/* ─── aguardando OA ─────────────────────────────────────────── */
+
+async function renderAguardandoOA() {
+  const container = document.getElementById('aguardando-oa-container');
+  try {
+    const pallets = await api.get('/resfriamento/pallets-aguardando-oa');
+    if (!pallets || !pallets.length) {
+      container.innerHTML = '<span style="color:var(--text-muted);font-size:.82rem">Nenhum pallet aguardando vínculo a OA.</span>';
+      return;
+    }
+    container.innerHTML = `
+      <table class="aw-table">
+        <thead><tr>
+          <th>N° Pallet</th><th>Variedade</th><th>Classif.</th>
+          <th>Túnel / Boca</th><th>Temp. entrada</th><th>Temp. polpa</th><th>Atualizado em</th>
+        </tr></thead>
+        <tbody>
+          ${pallets.map(p => `<tr>
+            <td style="font-weight:600">${p.id}</td>
+            <td>${p.variedade||'—'}</td>
+            <td><span class="badge-${(p.classificacao||'').toLowerCase()==='good'?'good':'frutibras'}">${p.classificacao||'—'}</span></td>
+            <td>T${p.tunel||'?'} · Boca ${p.boca||'?'}</td>
+            <td>${p.temp_entrada!=null?p.temp_entrada+'°C':'—'}</td>
+            <td>${p.temp_saida!=null?p.temp_saida+'°C':'<span style="color:#f59e0b">Pendente</span>'}</td>
+            <td>${p.updated_at?new Date(p.updated_at).toLocaleString('pt-BR'):'—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch(e) {
+    container.innerHTML = `<span style="color:var(--danger);font-size:.82rem">Erro: ${e.message}</span>`;
+  }
 }
 
 /* ─── OAs ───────────────────────────────────────────────────── */
@@ -115,28 +151,42 @@ async function renderOAs() {
   const container = document.getElementById('oas-container');
   try {
     const oas = await api.get('/resfriamento/oas');
-    if (!oas || oas.length === 0) {
+    if (!oas || !oas.length) {
       container.innerHTML = '<span style="color:var(--text-muted);font-size:.82rem">Nenhuma OA criada ainda.</span>';
       return;
     }
     container.innerHTML = oas.map(oa => {
       const pallets = oa.pallets_detalhes || [];
       const criada = oa.criada_em ? new Date(oa.criada_em).toLocaleString('pt-BR') : '—';
-      const badgeCls = oa.status === 'executada' ? 'oa-badge-executada' : 'oa-badge-pendente';
+      const executada = oa.status === 'executada';
+      const badgeCls = executada ? 'oa-badge-executada' : 'oa-badge-pendente';
       const tags = pallets.map(p =>
-        `<span class="oa-pallet-tag">${p.id} · T${p.tunel||'?'} B${p.boca||'?'}${p.temp_saida!=null?' ✓':''}</span>`
+        `<span class="oa-pallet-tag">${p.id} · T${p.tunel||'?'} B${p.boca||'?'}${p.temp_saida!=null?' ✓':' ⚠'}</span>`
       ).join('');
       return `<div class="oa-card">
         <div class="oa-card-header">
           <span class="oa-id">${oa.id}</span>
-          <span class="oa-badge ${badgeCls}">${oa.status||'pendente'}</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="oa-badge ${badgeCls}">${oa.status||'pendente'}</span>
+            ${!executada ? `<button class="btn btn-primary btn-sm" onclick="executarOA('${oa.id}')">▶ Executar</button>` : ''}
+          </div>
         </div>
         <div class="oa-meta">Criada em ${criada} · ${pallets.length} pallet(s)</div>
-        <div class="oa-pallets">${tags || '<span style="opacity:.5">—</span>'}</div>
+        <div class="oa-pallets">${tags||'<span style="opacity:.5">—</span>'}</div>
       </div>`;
     }).join('');
   } catch(e) {
     container.innerHTML = `<span style="color:var(--danger);font-size:.82rem">Erro: ${e.message}</span>`;
+  }
+}
+
+async function executarOA(oaId) {
+  try {
+    await api.post(`/resfriamento/oa/${oaId}/executar`, {});
+    showToast(`OA ${oaId} executada! Pallets movidos para armazenamento.`, 'success');
+    await init();
+  } catch(e) {
+    showToast(e.message, 'error');
   }
 }
 
@@ -155,7 +205,7 @@ async function abrirModalOA() {
     renderModalPallets();
   } catch(e) {
     document.getElementById('modal-pallets-lista').innerHTML =
-      `<span style="color:var(--danger);font-size:.82rem">Erro ao carregar: ${e.message}</span>`;
+      `<span style="color:var(--danger);font-size:.82rem">Erro: ${e.message}</span>`;
   }
 }
 
@@ -190,13 +240,12 @@ function togglePallet(id) {
 }
 
 function toggleSelecionarTodos() {
-  const chk = document.getElementById('chk-todos');
   if (modalSelecionados.size === modalPallets.length) {
     modalSelecionados = new Set();
-    chk.checked = false;
+    document.getElementById('chk-todos').checked = false;
   } else {
     modalSelecionados = new Set(modalPallets.map(p => p.id));
-    chk.checked = true;
+    document.getElementById('chk-todos').checked = true;
   }
   renderModalPallets();
   atualizarContadorModal();
@@ -216,7 +265,7 @@ function fecharModalDireto() {
 }
 
 async function confirmarCriarOA() {
-  if (modalSelecionados.size === 0) return;
+  if (!modalSelecionados.size) return;
   try {
     const result = await api.post('/resfriamento/oa', {
       pallet_ids: Array.from(modalSelecionados),
@@ -225,6 +274,7 @@ async function confirmarCriarOA() {
     showToast(`OA ${result.oa_id} criada com ${result.pallets.length} pallet(s).`, 'success');
     fecharModalDireto();
     await renderOAs();
+    await renderAguardandoOA();
   } catch(e) {
     showToast(e.message, 'error');
   }
@@ -248,7 +298,7 @@ async function selectTunel(tunel) {
   } catch(_) {}
 
   await renderSessaoBar();
-  atualizarConcluirBar();
+  atualizarEncerrarBar();
 }
 
 /* ─── detalhe do pallet ─────────────────────────────────────── */
@@ -300,7 +350,6 @@ document.getElementById('btn-salvar-temp').addEventListener('click', async () =>
       observacao: obs||null,
       sessao_id: sessaoAtiva ? sessaoAtiva.id : null,
     });
-    // Atualiza estado local refletindo o banco
     Object.values(dadosTuneis[tunelAtivo]||{}).flat().forEach(p => {
       if (p.id === palletSelecionadoId) p.temp_saida = tempVal;
     });
@@ -311,26 +360,18 @@ document.getElementById('btn-salvar-temp').addEventListener('click', async () =>
   }
 });
 
-/* ─── concluir sessão ───────────────────────────────────────── */
+/* ─── encerrar sessão ───────────────────────────────────────── */
 
-async function concluirSessao() {
+async function encerrarSessao() {
   if (!sessaoAtiva) return;
-  const todos = palletsDoTunel();
-  const semTemp = todos.filter(p => p.temp_saida == null);
-  if (semTemp.length > 0) { showToast(`${semTemp.length} pallet(s) sem temperatura.`,'error'); return; }
-
-  const tempMedia = parseFloat(
-    (todos.map(p=>p.temp_saida).reduce((a,b)=>a+b,0)/todos.length).toFixed(1)
-  );
-
   try {
-    await api.post(`/resfriamento/sessao/${sessaoAtiva.id}/finalizar`, { temp_saida: tempMedia });
-    showToast('Sessão concluída! Pallets movidos para armazenamento.','success');
+    await api.post(`/resfriamento/sessao/${sessaoAtiva.id}/finalizar`, {});
+    showToast('Sessão encerrada. Pallets aguardam vínculo a OA.', 'success');
     sessaoAtiva = null;
     fecharDetalhe(false);
     await init();
   } catch(e) {
-    showToast(e.message,'error');
+    showToast(e.message, 'error');
   }
 }
 
@@ -345,6 +386,7 @@ async function init() {
   }
   renderBocas();
   await selectTunel(tunelAtivo);
+  await renderAguardandoOA();
   await renderOAs();
 }
 
