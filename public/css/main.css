@@ -276,3 +276,23 @@ tr:hover td { background: var(--surface2); }
   display: inline-block;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Área / Controle dinâmico ── */
+.ac-list { display: flex; flex-direction: column; gap: 10px; }
+.ac-row { display: grid; grid-template-columns: 1fr 1fr 130px 36px; gap: 8px; align-items: end; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.ac-row .ac-field { display: flex; flex-direction: column; gap: 4px; }
+.ac-row .ac-field label { font-size: .72rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+.ac-row .ac-field input { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 7px 10px; font-size: .85rem; width: 100%; }
+.ac-row .ac-field input:focus { outline: none; border-color: var(--accent); }
+.ac-remove { background: transparent; border: 1px solid var(--danger); color: var(--danger); border-radius: 6px; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s; flex-shrink: 0; }
+.ac-remove:hover { background: rgba(239,68,68,.15); }
+.ac-remove:disabled { opacity: .35; cursor: not-allowed; }
+.ac-add-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 7px 14px; background: transparent; border: 1px dashed var(--accent); color: var(--accent); border-radius: 8px; font-size: .82rem; font-weight: 600; cursor: pointer; transition: background .15s; }
+.ac-add-btn:hover { background: rgba(99,102,241,.1); }
+.dist-status { margin-top: 10px; padding: 8px 12px; border-radius: 8px; font-size: .82rem; font-weight: 600; display: none; }
+.dist-status.ok   { background: rgba(34,197,94,.12);  color: var(--success); display: block; }
+.dist-status.warn { background: rgba(239,68,68,.12);  color: var(--danger);  display: block; }
+.dist-status.info { background: rgba(99,102,241,.12); color: var(--accent);  display: block; }
+.form-grid select { -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2394a3b8' d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; cursor: pointer; }
+.section-divider { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.section-divider .section-label-inline { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 12px; }
