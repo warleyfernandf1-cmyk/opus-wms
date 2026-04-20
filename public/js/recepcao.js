@@ -62,16 +62,24 @@ function findColumnKey(headersMap, aliases) {
 
 function findHeaderRowIndex(rows) {
   return rows.findIndex(row => {
-    const normalizedCells = row.map(cell => normalizeHeader(cell)).filter(Boolean);
-    if (!normalizedCells.length) return false;
+    const cells = row.map(cell => normalizeHeader(cell)).filter(Boolean);
+    if (!cells.length) return false;
 
-    const hasPallet = normalizedCells.some(cell => cell === 'pallet' || cell.includes('pallet'));
-    const hasCaixas = normalizedCells.some(cell => cell === 'caixas' || cell.includes('caixas'));
-    const hasData = normalizedCells.some(cell => cell.includes('data embal'));
-    const hasVariedade = normalizedCells.some(cell => cell.includes('variedade'));
+    const hasNumero = cells.some(c => c === 'numero' || c.includes('numero') || c === 'número');
+    const hasCaixas = cells.some(c => c.includes('caixas'));
+    const hasData = cells.some(c => c.includes('data embal'));
+    const hasVariedade = cells.some(c => c.includes('variedade'));
 
-    return hasPallet && hasCaixas && hasData && hasVariedade;
+    return hasNumero && hasCaixas && hasData && hasVariedade;
   });
+}
+
+function isAuxiliaryRowAfterHeader(row) {
+  const normalizedCells = row.map(cell => normalizeHeader(cell)).filter(Boolean);
+  if (!normalizedCells.length) return true;
+
+  const joined = normalizedCells.join(' | ');
+  return joined.includes('tipo : pallet') || joined.includes('tipo: pallet') || joined === '-' || normalizedCells.every(c => c === '-');
 }
 
 function parseNumber(value) {
@@ -312,6 +320,7 @@ function parseWorksheetRows(rows) {
 
   importedRows = rows
     .slice(headerRowIndex + 1)
+    .filter(row => !isAuxiliaryRowAfterHeader(row))
     .filter(row => row.some(cell => asText(cell) !== ''))
     .map(row => {
       const classificacao = asText(row[col.classificacao]);
