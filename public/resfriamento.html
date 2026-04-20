@@ -44,17 +44,26 @@
       font-size:.75rem; font-weight:600; background:rgba(245,158,11,.15); color:#f59e0b; }
     .divider { height:1px; background:var(--border); }
     .operador-info { font-size:.72rem; color:var(--text-muted); }
-    .concluir-bar { display:flex; align-items:center; justify-content:space-between;
+    .encerrar-bar { display:flex; align-items:center; justify-content:space-between;
       padding:10px 0 0; border-top:1px solid var(--border); margin-top:8px; }
-    .concluir-info { font-size:.78rem; color:var(--text-muted); }
-    .concluir-info span { color:var(--accent); font-weight:600; }
-    .btn-concluir { padding:8px 18px; border-radius:8px; border:none; font-size:.85rem;
+    .encerrar-info { font-size:.78rem; color:var(--text-muted); }
+    .encerrar-info span { color:var(--accent); font-weight:600; }
+    .btn-encerrar { padding:8px 18px; border-radius:8px; border:none; font-size:.85rem;
       font-weight:600; cursor:pointer; transition:.15s; }
-    .btn-concluir:disabled { background:var(--surface2); color:var(--text-muted); cursor:not-allowed; }
-    .btn-concluir:not(:disabled) { background:#22c55e; color:#fff; }
-    .btn-concluir:not(:disabled):hover { background:#16a34a; }
-
-    /* OA list */
+    .btn-encerrar:disabled { background:var(--surface2); color:var(--text-muted); cursor:not-allowed; }
+    .btn-encerrar:not(:disabled) { background:#f59e0b; color:#fff; }
+    .btn-encerrar:not(:disabled):hover { background:#d97706; }
+    .aw-table { width:100%; border-collapse:collapse; font-size:.82rem; }
+    .aw-table th { text-align:left; font-size:.65rem; font-weight:600; color:var(--text-muted);
+      text-transform:uppercase; letter-spacing:.05em; padding:6px 10px;
+      border-bottom:1px solid var(--border); }
+    .aw-table td { padding:8px 10px; border-bottom:1px solid var(--border); color:var(--text); }
+    .aw-table tr:last-child td { border-bottom:none; }
+    .aw-table tr:hover td { background:var(--surface2); }
+    .badge-good { background:rgba(34,197,94,.15); color:#22c55e; padding:2px 6px;
+      border-radius:4px; font-size:.7rem; font-weight:600; }
+    .badge-frutibras { background:rgba(99,102,241,.15); color:var(--accent); padding:2px 6px;
+      border-radius:4px; font-size:.7rem; font-weight:600; }
     .oa-header-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
     .oa-card { border:1px solid var(--border); border-radius:8px; padding:12px 14px;
       margin-bottom:8px; background:var(--surface2); }
@@ -67,8 +76,6 @@
     .oa-pallets { font-size:.75rem; color:var(--text-muted); }
     .oa-pallet-tag { display:inline-block; background:var(--surface); border:1px solid var(--border);
       border-radius:4px; padding:1px 6px; font-size:.72rem; margin:2px; }
-
-    /* Modal */
     .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6);
       display:flex; align-items:center; justify-content:center; z-index:1000; }
     .modal-overlay.hidden { display:none; }
@@ -146,20 +153,20 @@
     <div class="card">
       <div class="card-title" id="bocas-titulo">Túnel 01 — Bocas</div>
       <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">
-        Clique em uma boca ocupada para registrar a temperatura de polpa. Cada pallet aparece em seu próprio card.
+        Clique em uma boca ocupada para registrar a temperatura de polpa.
       </p>
       <div class="bocas-grid" id="bocas-grid">
         <span style="color:var(--text-muted);font-size:.82rem">Carregando...</span>
       </div>
-      <div class="concluir-bar" id="concluir-bar" style="display:none">
-        <div class="concluir-info" id="concluir-info">—</div>
-        <button class="btn-concluir" id="btn-concluir-sessao" disabled onclick="concluirSessao()">
-          ✓ Concluir Sessão
+      <div class="encerrar-bar" id="encerrar-bar" style="display:none">
+        <div class="encerrar-info" id="encerrar-info">—</div>
+        <button class="btn-encerrar" id="btn-encerrar-sessao" disabled onclick="encerrarSessao()">
+          ⏹ Encerrar Sessão
         </button>
       </div>
     </div>
 
-    <!-- Painel de detalhe do pallet -->
+    <!-- Painel de detalhe -->
     <div class="card detalhe-panel" id="detalhe-panel">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div>
@@ -195,13 +202,24 @@
       </div>
     </div>
 
+    <!-- Aguardando vínculo a OA -->
+    <div class="card">
+      <div class="card-title">Aguardando vínculo a OA</div>
+      <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">
+        Pallets com sessão encerrada que ainda não foram incluídos em nenhuma Ordem de Armazenamento.
+      </p>
+      <div id="aguardando-oa-container">
+        <span style="color:var(--text-muted);font-size:.82rem">Carregando...</span>
+      </div>
+    </div>
+
     <!-- Ordens de Armazenamento -->
     <div class="card">
       <div class="oa-header-row">
         <div>
           <div class="card-title" style="margin-bottom:2px">Ordens de Armazenamento (OA)</div>
           <p style="font-size:.78rem;color:var(--text-muted);margin:0">
-            Programam a alocação dos pallets nas câmaras frias.
+            Programam e executam a transferência dos pallets para as câmaras frias.
           </p>
         </div>
         <button class="btn btn-primary" onclick="abrirModalOA()">+ Criar nova OA</button>
@@ -236,7 +254,7 @@
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" onclick="fecharModalDireto()">Cancelar</button>
-        <button class="btn btn-primary" id="btn-confirmar-oa" onclick="confirmarCriarOA()">Criar OA</button>
+        <button class="btn btn-primary" id="btn-confirmar-oa" disabled onclick="confirmarCriarOA()">Criar OA</button>
       </div>
     </div>
   </div>
