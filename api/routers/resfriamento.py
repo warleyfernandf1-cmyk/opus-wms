@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
-from api.models.schemas import SessaoCreate, SessaoFinalizar, SessaoOut, SalvarTempPalletIn, CriarOAIn
+from api.models.schemas import SessaoOut, SalvarTempPalletIn, CriarOAIn
 from api.services import resfriamento as svc
 
 router = APIRouter()
@@ -19,43 +19,46 @@ def listar_sessoes(
     return svc.listar_sessoes(tunel=tunel, status=status)
 
 
-@router.get("/oas")
-def listar_oas(tunel: Optional[str] = Query(None)):
-    """Lista Ordens de Armazenamento com pallets detalhados."""
-    return svc.listar_oas(tunel=tunel)
-
-
 @router.get("/pallets-resfriamento")
 def pallets_em_resfriamento():
-    """Lista todos os pallets em fase resfriamento para o modal de criação de OA."""
+    """Todos os pallets em resfriamento para o modal de criação de OA."""
     return svc.pallets_em_resfriamento()
+
+
+@router.get("/pallets-aguardando-oa")
+def pallets_aguardando_oa():
+    """Pallets em resfriamento com sessão finalizada e sem vínculo a OA."""
+    return svc.pallets_aguardando_oa()
+
+
+@router.get("/oas")
+def listar_oas():
+    """Lista Ordens de Armazenamento com pallets detalhados."""
+    return svc.listar_oas()
 
 
 @router.post("/oa")
 def criar_oa(body: CriarOAIn):
-    """Cria uma OA com pallets selecionados manualmente. Independente de finalizar_sessao."""
+    """Cria OA com pallets selecionados. Independente de finalizar sessão."""
     return svc.criar_oa(pallet_ids=body.pallet_ids, sessao_id=body.sessao_id)
 
 
-@router.post("/sessao", response_model=SessaoOut, status_code=201)
-def iniciar_sessao(body: SessaoCreate):
-    return svc.iniciar_sessao(body.tunel)
+@router.post("/oa/{oa_id}/executar")
+def executar_oa(oa_id: str):
+    """
+    Executa a OA — move pallets resfriamento→armazenamento.
+    Valida temperaturas registradas e sessão do túnel encerrada.
+    """
+    return svc.executar_oa(oa_id)
 
 
 @router.post("/sessao/{sessao_id}/finalizar", response_model=SessaoOut)
-def finalizar_sessao(sessao_id: str, body: SessaoFinalizar):
-    sessao = svc.finalizar_sessao(sessao_id, body.temp_saida)
+def finalizar_sessao(sessao_id: str):
+    """Encerra o giro do túnel. Não move pallets — isso é responsabilidade da OA."""
+    sessao = svc.finalizar_sessao(sessao_id)
     if not sessao:
         raise HTTPException(404, "Sessão não encontrada")
     return sessao
-
-
-@router.get("/sessao/{sessao_id}/oa")
-def gerar_oa(sessao_id: str):
-    oa = svc.gerar_oa(sessao_id)
-    if not oa:
-        raise HTTPException(404, "Sessão não encontrada ou OA já gerada")
-    return oa
 
 
 @router.post("/pallet/{pallet_id}/temp")
