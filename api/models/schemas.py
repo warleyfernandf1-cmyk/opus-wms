@@ -46,9 +46,6 @@ class PalletOut(PalletCreate):
 class SessaoCreate(BaseModel):
     tunel: Literal["01", "02"]
 
-class SessaoFinalizar(BaseModel):
-    temp_saida: float
-
 class SessaoOut(BaseModel):
     id: str
     tunel: str
