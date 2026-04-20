@@ -82,14 +82,34 @@ function isAuxiliaryRowAfterHeader(row) {
   return joined.includes('tipo : pallet') || joined.includes('tipo: pallet') || joined === '-' || normalizedCells.every(c => c === '-');
 }
 
+function isSummaryRow(row, col) {
+  const pallet = readPalletNumber(row, col.nro_pallet, col.qtd_caixas);
+  const caixas = parseNumber(row[col.qtd_caixas]);
+  const data = excelDateToISO(row[col.data_embalamento]);
+  const variedade = asText(row[col.variedade]);
+  const classificacao = asText(row[col.classificacao]);
+
+  if (!pallet && !caixas && !data && !variedade) return true;
+
+  if (pallet && caixas && !data && !variedade && !classificacao) {
+    return true;
+  }
+
+  if (caixas && !pallet && !data && !variedade) {
+    return true;
+  }
+
+  return false;
+}
+
 function parseNumber(value) {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value === 'number') return value;
 
   const raw = asText(value);
-  const kgLike = raw.match(/(\d+[.,]?\d*)/);
-  if (!kgLike) return null;
-  return Number(kgLike[1].replace(',', '.'));
+  const match = raw.match(/(\d+[.,]?\d*)/);
+  if (!match) return null;
+  return Number(match[1].replace(',', '.'));
 }
 
 function excelDateToISO(value) {
@@ -162,17 +182,31 @@ function normalizeCaixa(value) {
   return match ? match[1].trim() : raw;
 }
 
-function normalizePeso(value) {
-  const raw = asText(value);
+function normalizePeso(value, fallbackText = '') {
+  const raw = asText(value) || asText(fallbackText);
   if (!raw) return parseNumber(value);
   const match = raw.match(/(\d+[.,]?\d*)\s*KG\b/i);
   if (match) return Number(match[1].replace(',', '.'));
-  return parseNumber(value);
+  return parseNumber(raw);
 }
 
 function normalizeMercado(classificacao) {
   const text = normalizeHeader(classificacao);
   return text.includes('exportacao') ? 'EXTERNO' : 'INTERNO';
+}
+
+function readPalletNumber(row, palletColIndex, caixasColIndex) {
+  const direct = asText(row[palletColIndex]);
+  if (direct) return direct;
+
+  const nextCell = asText(row[palletColIndex + 1]);
+  const caixasValue = parseNumber(row[caixasColIndex]);
+
+  if (nextCell && /^\d+$/.test(nextCell) && Number(nextCell) !== caixasValue) {
+    return nextCell;
+  }
+
+  return '';
 }
 
 function validateImportedRow(row) {
@@ -322,11 +356,14 @@ function parseWorksheetRows(rows) {
     .slice(headerRowIndex + 1)
     .filter(row => !isAuxiliaryRowAfterHeader(row))
     .filter(row => row.some(cell => asText(cell) !== ''))
+    .filter(row => !isSummaryRow(row, col))
     .map(row => {
       const classificacao = asText(row[col.classificacao]);
+      const caixaRaw = col.caixa_raw !== null ? row[col.caixa_raw] : '';
+      const pesoRaw = col.peso_raw !== null ? row[col.peso_raw] : '';
       const parsed = {
         _saved: false,
-        nro_pallet: asText(row[col.nro_pallet]),
+        nro_pallet: readPalletNumber(row, col.nro_pallet, col.qtd_caixas),
         qtd_caixas: parseNumber(row[col.qtd_caixas]),
         data_embalamento: excelDateToISO(row[col.data_embalamento]),
         variedade: asText(row[col.variedade]),
@@ -335,8 +372,8 @@ function parseWorksheetRows(rows) {
         embalagem: normalizeEmbalagem(col.embalagem_raw !== null ? row[col.embalagem_raw] : ''),
         rotulo: asText(row[col.etiqueta]),
         produtor: normalizeProdutor(col.produtor_raw !== null ? row[col.produtor_raw] : ''),
-        caixa: normalizeCaixa(col.caixa_raw !== null ? row[col.caixa_raw] : ''),
-        peso: normalizePeso(col.peso_raw !== null ? row[col.peso_raw] : ''),
+        caixa: normalizeCaixa(caixaRaw),
+        peso: normalizePeso(pesoRaw, caixaRaw),
         area: asText(row[col.apelido_talhao]),
         controle: asText(row[col.controle]),
         mercado: normalizeMercado(classificacao)
@@ -345,7 +382,7 @@ function parseWorksheetRows(rows) {
       validateImportedRow(parsed);
       return parsed;
     })
-    .filter(row => row.nro_pallet || row.qtd_caixas || row.data_embalamento);
+    .filter(row => row.nro_pallet && row.qtd_caixas && row.data_embalamento);
 
   selectedImportedRowIndex = null;
   renderImportPreview();
