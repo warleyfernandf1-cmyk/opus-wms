@@ -1,7 +1,16 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, Literal, Any
 from datetime import date, datetime
 import uuid
+
+# ---------------------------------------------------------------------------
+# Rastreabilidade proporcional — Área / Controle
+# ---------------------------------------------------------------------------
+
+class AreaControleItem(BaseModel):
+    area: str = Field(..., min_length=1)
+    controle: str = Field(..., min_length=1)
+    qtd_caixas: int = Field(..., ge=1)
 
 # ---------------------------------------------------------------------------
 # Pallet
@@ -21,15 +30,44 @@ class PalletCreate(BaseModel):
     produtor: str
     caixa: str
     peso: float
-    area: str
-    controle: str
+    areas_controles: list[AreaControleItem] = Field(..., min_length=1)
     mercado: str
     temp_entrada: float
     tunel: Literal["01", "02"]
     boca: int = Field(..., ge=1, le=12)
 
-class PalletOut(PalletCreate):
+    @model_validator(mode='after')
+    def validar_distribuicao_caixas(self) -> 'PalletCreate':
+        total_distribuido = sum(item.qtd_caixas for item in self.areas_controles)
+        if total_distribuido != self.qtd_caixas:
+            raise ValueError(
+                f"Soma das caixas por área/controle ({total_distribuido}) "
+                f"deve ser igual ao total de caixas ({self.qtd_caixas})."
+            )
+        return self
+
+class PalletOut(BaseModel):
     id: str
+    nro_pallet: str
+    qtd_caixas: int
+    data_embalamento: date
+    variedade: str
+    classificacao: str
+    safra: str
+    embalagem: str
+    rotulo: str
+    produtor: str
+    caixa: str
+    peso: float
+    # Multi-valor (novo)
+    areas_controles: Optional[list[AreaControleItem]] = None
+    # Colunas legadas — preenchidas com o primeiro item de areas_controles
+    area: Optional[str] = None
+    controle: Optional[str] = None
+    mercado: str
+    temp_entrada: float
+    tunel: str
+    boca: int
     fase: FasePallet
     temp_saida: Optional[float] = None
     camara: Optional[str] = None
