@@ -76,9 +76,6 @@
         <div class="field"><label>Qtd Caixas</label><input name="qtd_caixas" type="number" min="1" required></div>
         <div class="field"><label>Data Embalamento</label><input name="data_embalamento" type="date" required></div>
         <div class="field"><label>Safra</label><input name="safra" required></div>
-        <div class="field"><label>Rótulo</label><input name="rotulo" required></div>
-        <div class="field"><label>Produtor</label><input name="produtor" required></div>
-        <div class="field"><label>Temp. Entrada (°C)</label><input name="temp_entrada" type="number" step="0.1" required></div>
         <div class="field">
           <label>Variedade</label>
           <select name="variedade" required>
@@ -102,6 +99,8 @@
             <option>CUMBUCA ABERTA</option><option>CUMBUCA FECHADA</option><option>SACOLA</option>
           </select>
         </div>
+        <div class="field"><label>Rótulo</label><input name="rotulo" required></div>
+        <div class="field"><label>Produtor</label><input name="produtor" required></div>
         <div class="field">
           <label>Caixa</label>
           <select name="caixa" required>
@@ -117,6 +116,8 @@
             <option value="5">5 kg</option><option value="8">8 kg</option><option value="8.2">8,2 kg</option>
           </select>
         </div>
+        <!-- Área / Controle dinâmico — flui como campos normais via display:contents -->
+        <div id="ac-list" class="ac-list"></div>
         <div class="field">
           <label>Mercado</label>
           <select name="mercado" required>
@@ -124,6 +125,7 @@
             <option>EXTERNO</option><option>INTERNO</option>
           </select>
         </div>
+        <div class="field"><label>Temp. Entrada (°C)</label><input name="temp_entrada" type="number" step="0.1" required></div>
         <div class="field">
           <label>Túnel</label>
           <select name="tunel" required>
@@ -141,8 +143,6 @@
             <option value="10">Boca 10</option><option value="11">Boca 11</option><option value="12">Boca 12</option>
           </select>
         </div>
-        <!-- Área / Controle dinâmico -->
-        <div id="ac-list" class="ac-list form-grid-span"></div>
       </form>
       <button type="button" class="ac-add-btn" id="btn-add-ac">＋ Adicionar Área / Controle</button>
       <div id="dist-status" class="dist-status"></div>
