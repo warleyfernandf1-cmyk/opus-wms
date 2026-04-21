@@ -71,51 +71,68 @@
     .oa-id { font-size:.85rem; font-weight:600; color:var(--accent); }
     .oa-badge { font-size:.7rem; padding:2px 8px; border-radius:4px; font-weight:600; }
     .oa-badge-pendente { background:rgba(245,158,11,.15); color:#f59e0b; }
+    .oa-badge-programada { background:rgba(99,102,241,.15); color:var(--accent); }
     .oa-badge-executada { background:rgba(34,197,94,.15); color:#22c55e; }
     .oa-meta { font-size:.75rem; color:var(--text-muted); margin-bottom:6px; }
     .oa-pallets { font-size:.75rem; color:var(--text-muted); }
     .oa-pallet-tag { display:inline-block; background:var(--surface); border:1px solid var(--border);
       border-radius:4px; padding:1px 6px; font-size:.72rem; margin:2px; }
+
+    /* ── Modal ── */
     .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6);
       display:flex; align-items:center; justify-content:center; z-index:1000; }
     .modal-overlay.hidden { display:none; }
     .modal { background:var(--surface); border:1px solid var(--border); border-radius:12px;
-      width:820px; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; }
+      width:760px; max-width:95vw; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; }
     .modal-head { padding:16px 20px; border-bottom:1px solid var(--border);
       display:flex; justify-content:space-between; align-items:center; }
     .modal-head h2 { font-size:1rem; font-weight:600; margin:0; }
     .modal-body { padding:16px 20px; overflow-y:auto; flex:1; }
     .modal-foot { padding:12px 20px; border-top:1px solid var(--border);
-      display:flex; justify-content:space-between; align-items:center; gap:10px; }
+      display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
     .modal-sel-info { font-size:.8rem; color:var(--text-muted); }
     .modal-sel-info span { color:var(--accent); font-weight:600; }
-    .pallet-row { display:flex; align-items:center; gap:10px; padding:8px 10px;
-      border:1px solid var(--border); border-radius:8px; margin-bottom:6px;
-      cursor:pointer; transition:.15s; background:var(--surface2); }
-    .pallet-row:hover { background:var(--surface); border-color:var(--accent); }
-    .pallet-row.selecionado { background:rgba(99,102,241,.08); border-color:var(--accent); }
-    .pallet-row input[type=checkbox] { width:16px; height:16px; accent-color:var(--accent); cursor:pointer; }
-    .pallet-row-info { flex:1; }
+
+    /* ── Pallet row no modal ── */
+    .pallet-row { border:1px solid var(--border); border-radius:8px; margin-bottom:8px;
+      transition:.15s; background:var(--surface2); overflow:hidden; }
+    .pallet-row:hover { border-color:var(--accent); }
+    .pallet-row.selecionado { background:rgba(99,102,241,.05); border-color:var(--accent); }
+    .pallet-row-top { display:flex; align-items:center; gap:10px; padding:8px 10px;
+      cursor:pointer; }
+    .pallet-row input[type=checkbox] { width:16px; height:16px; accent-color:var(--accent); cursor:pointer; flex-shrink:0; }
+    .pallet-row-info { flex:1; min-width:0; }
     .pallet-row-id { font-size:.85rem; font-weight:600; color:var(--text); }
-    .pallet-row-meta { font-size:.72rem; color:var(--text-muted); }
-    .pallet-row-temp { font-size:.72rem; padding:2px 6px; border-radius:4px; }
+    .pallet-row-meta { font-size:.72rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .pallet-row-temp { font-size:.72rem; padding:2px 6px; border-radius:4px; flex-shrink:0; }
     .pallet-row-temp.ok { background:rgba(99,102,241,.15); color:var(--accent); }
     .pallet-row-temp.sem { background:rgba(245,158,11,.15); color:#f59e0b; }
+
+    /* ── Badge de destino ── */
+    .destino-badge { font-size:.72rem; padding:2px 8px; border-radius:4px; font-weight:600;
+      white-space:nowrap; flex-shrink:0; }
+    .destino-ok { background:rgba(34,197,94,.15); color:#22c55e; }
+    .destino-pendente { background:rgba(239,68,68,.12); color:#f87171; }
+
+    /* ── Selects cascata de destino ── */
+    .destino-selects { padding:10px 12px 12px; border-top:1px solid var(--border);
+      background:rgba(99,102,241,.04); }
+    .destino-selects-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+    .destino-selects .field label { font-size:.68rem; color:var(--text-muted); font-weight:600;
+      text-transform:uppercase; letter-spacing:.05em; }
+    .destino-selects .field select { background:var(--surface); border:1px solid var(--border);
+      border-radius:6px; color:var(--text); padding:6px 10px; font-size:.8rem; width:100%;
+      outline:none; transition:border .15s; cursor:pointer; }
+    .destino-selects .field select:focus { border-color:var(--accent); }
+    .destino-selects .field select:disabled { opacity:.45; cursor:not-allowed; }
+    .destino-selects .field select option:disabled { color:var(--muted); }
+
+    /* ── Sel-all row ── */
     .sel-all-row { display:flex; align-items:center; gap:8px; margin-bottom:10px;
       font-size:.8rem; color:var(--text-muted); cursor:pointer; }
-    .oa-badge-programada { background:rgba(99,102,241,.15); color:var(--accent); }
-    .pallet-dest-row { display:flex; gap:8px; padding:8px 0 2px; }
-    .dest-sel { flex:1; background:var(--surface); border:1px solid var(--border);
-      border-radius:6px; color:var(--text); padding:5px 8px; font-size:.78rem; outline:none; }
-    .dest-sel:focus { border-color:var(--accent); }
-    .dest-sel:disabled { opacity:.4; cursor:not-allowed; }
-    .dest-valid { color:var(--success); font-size:.72rem; margin-top:2px; }
-    .modal-operator { display:flex; align-items:center; gap:10px; margin-bottom:12px;
-      padding-bottom:12px; border-bottom:1px solid var(--border); font-size:.82rem; }
-    .modal-operator label { color:var(--muted); white-space:nowrap; }
-    .modal-operator input { flex:1; background:var(--surface2); border:1px solid var(--border);
-      border-radius:6px; color:var(--text); padding:6px 10px; font-size:.82rem; outline:none; }
-    .modal-operator input:focus { border-color:var(--accent); }
+
+    /* ── Mensagem de validação no rodapé ── */
+    .modal-validacao-msg { font-size:.78rem; font-weight:500; }
   </style>
 </head>
 <body>
@@ -253,10 +270,10 @@
       <button class="btn btn-ghost btn-sm" onclick="fecharModalDireto()">✕</button>
     </div>
     <div class="modal-body">
-      <div class="modal-operator">
-        <label>Operador:</label>
-        <input type="text" id="modal-operador" placeholder="Nome do operador" value="Operador">
-      </div>
+      <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">
+        Selecione os pallets e defina o <strong style="color:var(--text)">destino obrigatório</strong>
+        (Câmara → Rua → Posição) para cada um. Apenas posições livres são exibidas.
+      </p>
       <div class="sel-all-row" onclick="toggleSelecionarTodos()">
         <input type="checkbox" id="chk-todos">
         <span>Selecionar todos os pallets</span>
@@ -266,8 +283,13 @@
       </div>
     </div>
     <div class="modal-foot">
-      <div class="modal-sel-info">
-        <span id="modal-sel-count">0</span> pallet(s) selecionado(s)
+      <div>
+        <div class="modal-sel-info">
+          <span id="modal-sel-count">0</span> pallet(s) selecionado(s)
+        </div>
+        <div class="modal-validacao-msg" id="modal-validacao-msg" style="color:var(--muted);margin-top:4px">
+          Selecione ao menos um pallet.
+        </div>
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" onclick="fecharModalDireto()">Cancelar</button>
