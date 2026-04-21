@@ -240,9 +240,10 @@ function readPalletNumber(row, palletColIndex, caixasColIndex) {
 function validateImportedRow(row) {
   const required = [
     'nro_pallet','qtd_caixas','data_embalamento','variedade','classificacao',
-    'safra','embalagem','rotulo','produtor','caixa','peso','area','controle','mercado'
+    'safra','embalagem','rotulo','produtor','caixa','peso','mercado'
   ];
   const missing = required.filter(f => row[f] === '' || row[f] === null || row[f] === undefined);
+  if (!row.areas_controles?.length) missing.push('areas_controles');
   row._missing = missing;
   row._valid   = missing.length === 0;
 }
@@ -301,8 +302,8 @@ function renderImportPreview() {
       <td>${escapeHtml(row.produtor)}</td>
       <td>${escapeHtml(row.caixa)}</td>
       <td>${row.peso ?? '—'}</td>
-      <td>${escapeHtml(row.area)}</td>
-      <td>${escapeHtml(row.controle)}</td>
+      <td>${(row.areas_controles||[]).map(ac=>escapeHtml(ac.area)).join(', ')}</td>
+      <td>${(row.areas_controles||[]).map(ac=>escapeHtml(ac.controle)).join(', ')}</td>
       <td>${(!row._saved && row._valid)
         ? `<button class="btn btn-ghost btn-sm btn-usar-import" data-row="${i}">Usar</button>`
         : '—'}</td>
@@ -328,21 +329,17 @@ function setSelectValue(name, value) {
 function fillFormFromImportedRow(row) {
   const form = document.getElementById('form-recepcao');
 
-  // Campos de texto
   const textFields = ['nro_pallet','qtd_caixas','data_embalamento','safra','rotulo','produtor','temp_entrada'];
-  textFields.forEach(key => {
-    const field = form.elements.namedItem(key);
-    if (field) field.value = row[key] ?? '';
-  });
+  textFields.forEach(key => { const f = form.elements.namedItem(key); if (f) f.value = row[key] ?? ''; });
 
-  // Selects padronizados
   ['variedade','classificacao','embalagem','caixa','mercado'].forEach(key => setSelectValue(key, row[key] ?? ''));
   if (row.peso) setSelectValue('peso', row.peso);
 
-  // Área/Controle: importação traz um único par — popula a primeira linha
-  clearAreasControles();
-  const qtdTotal = Number(row.qtd_caixas) || 0;
-  addAreaControle(row.area || '', row.controle || '', qtdTotal);
+  // Popula exatamente N linhas de área/controle conforme o array (sem linha em branco extra)
+  document.getElementById('ac-list').innerHTML = '';
+  acCounter = 0;
+  (row.areas_controles || [{ area: row.area, controle: row.controle, qtd_caixas: row.qtd_caixas }])
+    .forEach(ac => addAreaControle(ac.area || '', ac.controle || '', ac.qtd_caixas || ''));
   updateDistStatus();
 }
 
@@ -376,7 +373,8 @@ function parseWorksheetRows(rows) {
   const col = {};
   Object.entries(COLUMN_ALIASES).forEach(([key, aliases]) => { col[key] = findColumnKey(headersMap, aliases); });
 
-  importedRows = rows
+  // 1. Parse linha a linha
+  const rawRows = rows
     .slice(headerRowIndex + 1)
     .filter(row => !isAuxiliaryRowAfterHeader(row))
     .filter(row => row.some(c => asText(c) !== ''))
@@ -385,8 +383,7 @@ function parseWorksheetRows(rows) {
       const classificacao = asText(row[col.classificacao]);
       const caixaRaw = col.caixa_raw !== null ? row[col.caixa_raw] : '';
       const pesoRaw  = col.peso_raw  !== null ? row[col.peso_raw]  : '';
-      const parsed = {
-        _saved: false,
+      return {
         nro_pallet:       readPalletNumber(row, col.nro_pallet, col.qtd_caixas),
         qtd_caixas:       parseNumber(row[col.qtd_caixas]),
         data_embalamento: excelDateToISO(row[col.data_embalamento]),
@@ -402,10 +399,27 @@ function parseWorksheetRows(rows) {
         controle:         asText(row[col.controle]),
         mercado:          normalizeMercado(classificacao),
       };
-      validateImportedRow(parsed);
-      return parsed;
     })
     .filter(row => row.nro_pallet && row.qtd_caixas && row.data_embalamento);
+
+  // 2. Agrupar linhas consecutivas com o mesmo nro_pallet (pallet multi-talhão)
+  const grouped = [];
+  for (const row of rawRows) {
+    const prev = grouped[grouped.length - 1];
+    if (prev && prev.nro_pallet === row.nro_pallet) {
+      // Mesma linha de pallet — adiciona área/controle e soma caixas
+      prev.areas_controles.push({ area: row.area, controle: row.controle, qtd_caixas: row.qtd_caixas });
+      prev.qtd_caixas += row.qtd_caixas;
+    } else {
+      grouped.push({
+        ...row,
+        _saved: false,
+        areas_controles: [{ area: row.area, controle: row.controle, qtd_caixas: row.qtd_caixas }],
+      });
+    }
+  }
+
+  importedRows = grouped.map(row => { validateImportedRow(row); return row; });
 
   selectedImportedRowIndex = null;
   renderImportPreview();
