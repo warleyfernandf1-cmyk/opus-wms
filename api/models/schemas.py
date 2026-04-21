@@ -59,9 +59,7 @@ class PalletOut(BaseModel):
     produtor: str
     caixa: str
     peso: float
-    # Multi-valor (novo)
     areas_controles: Optional[list[AreaControleItem]] = None
-    # Colunas legadas — preenchidas com o primeiro item de areas_controles
     area: Optional[str] = None
     controle: Optional[str] = None
     mercado: str
@@ -98,7 +96,12 @@ class SalvarTempPalletIn(BaseModel):
     observacao: Optional[str] = None
     sessao_id: Optional[str] = None
 
-class DestinoOAItem(BaseModel):
+# ---------------------------------------------------------------------------
+# OA — Destino por pallet (NOVO)
+# ---------------------------------------------------------------------------
+
+class DestinoAlocarItem(BaseModel):
+    """Destino de um pallet específico dentro de uma OA."""
     pallet_id: str
     camara: Literal["01", "02"]
     rua: int = Field(..., ge=1, le=13)
@@ -107,8 +110,7 @@ class DestinoOAItem(BaseModel):
 class CriarOAIn(BaseModel):
     pallet_ids: list[str]
     sessao_id: Optional[str] = None
-    destinos: list[DestinoOAItem] = []
-    operador: str = "Operador"
+    destinos: Optional[list[DestinoAlocarItem]] = None  # mapeamento pallet→posição
 
 # ---------------------------------------------------------------------------
 # Armazenamento
