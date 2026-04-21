@@ -98,9 +98,17 @@ class SalvarTempPalletIn(BaseModel):
     observacao: Optional[str] = None
     sessao_id: Optional[str] = None
 
+class DestinoOAItem(BaseModel):
+    pallet_id: str
+    camara: Literal["01", "02"]
+    rua: int = Field(..., ge=1, le=13)
+    posicao: int = Field(..., ge=1, le=6)
+
 class CriarOAIn(BaseModel):
     pallet_ids: list[str]
     sessao_id: Optional[str] = None
+    destinos: list[DestinoOAItem] = []
+    operador: str = "Operador"
 
 # ---------------------------------------------------------------------------
 # Armazenamento
