@@ -18,6 +18,8 @@ let dadosTuneis = {};
 let sessaoAtiva = null;
 let modalPallets = [];
 let modalSelecionados = new Set();
+let posLivresMap = {};   // { camara: { rua: [posicoes] } }
+let palletDestinos = {}; // { pallet_id: { camara, rua, posicao } }
 
 /* ─── helpers ───────────────────────────────────────────────── */
 
@@ -157,12 +159,17 @@ async function renderOAs() {
     }
     container.innerHTML = oas.map(oa => {
       const pallets = oa.pallets_detalhes || [];
+      const destinos = (oa.dados || {}).destinos || [];
+      const destinosMap = Object.fromEntries(destinos.map(d => [d.pallet_id, d]));
       const criada = oa.criada_em ? new Date(oa.criada_em).toLocaleString('pt-BR') : '—';
       const executada = oa.status === 'executada';
-      const badgeCls = executada ? 'oa-badge-executada' : 'oa-badge-pendente';
-      const tags = pallets.map(p =>
-        `<span class="oa-pallet-tag">${p.id} · T${p.tunel||'?'} B${p.boca||'?'}${p.temp_saida!=null?' ✓':' ⚠'}</span>`
-      ).join('');
+      const programada = oa.status === 'programada';
+      const badgeCls = executada ? 'oa-badge-executada' : programada ? 'oa-badge-programada' : 'oa-badge-pendente';
+      const tags = pallets.map(p => {
+        const d = destinosMap[p.id];
+        const dest = d ? ` → C${d.camara} R${String(d.rua).padStart(2,'0')} P${String(d.posicao).padStart(2,'0')}` : '';
+        return `<span class="oa-pallet-tag">${p.id}${dest}${p.temp_saida!=null?' ✓':' ⚠'}</span>`;
+      }).join('');
       return `<div class="oa-card">
         <div class="oa-card-header">
           <span class="oa-id">${oa.id}</span>
@@ -171,7 +178,7 @@ async function renderOAs() {
             ${!executada ? `<button class="btn btn-primary btn-sm" onclick="executarOA('${oa.id}')">▶ Executar</button>` : ''}
           </div>
         </div>
-        <div class="oa-meta">Criada em ${criada} · ${pallets.length} pallet(s)</div>
+        <div class="oa-meta">Criada em ${criada} · ${pallets.length} pallet(s) · Op: ${(oa.dados||{}).operador||'—'}</div>
         <div class="oa-pallets">${tags||'<span style="opacity:.5">—</span>'}</div>
       </div>`;
     }).join('');
@@ -192,8 +199,19 @@ async function executarOA(oaId) {
 
 /* ─── modal de criação de OA ────────────────────────────────── */
 
+function buildPosLivresMap(positions) {
+  const map = {};
+  positions.filter(p => p.tipo === 'rua').forEach(p => {
+    if (!map[p.camara]) map[p.camara] = {};
+    if (!map[p.camara][p.rua]) map[p.camara][p.rua] = [];
+    map[p.camara][p.rua].push(p.posicao);
+  });
+  return map;
+}
+
 async function abrirModalOA() {
   modalSelecionados = new Set();
+  palletDestinos = {};
   document.getElementById('modal-overlay').classList.remove('hidden');
   document.getElementById('modal-pallets-lista').innerHTML =
     '<span style="color:var(--text-muted);font-size:.82rem">Carregando pallets...</span>';
@@ -201,7 +219,11 @@ async function abrirModalOA() {
   atualizarContadorModal();
 
   try {
-    modalPallets = await api.get('/resfriamento/pallets-resfriamento');
+    [modalPallets, posLivres] = await Promise.all([
+      api.get('/resfriamento/pallets-resfriamento'),
+      api.get('/armazenamento/posicoes-livres'),
+    ]);
+    posLivresMap = buildPosLivresMap(posLivres);
     renderModalPallets();
   } catch(e) {
     document.getElementById('modal-pallets-lista').innerHTML =
@@ -209,10 +231,58 @@ async function abrirModalOA() {
   }
 }
 
+function buildDestSelects(palletId) {
+  const dest = palletDestinos[palletId] || {};
+
+  const camaraOpts = Object.entries(posLivresMap).map(([cam, ruas]) => {
+    const total = Object.values(ruas).flat().length;
+    if (!total) return '';
+    return `<option value="${cam}" ${dest.camara===cam?'selected':'"}>Câmara ${cam} (${total} livres)</option>`;
+  }).join('');
+
+  let ruaOpts = '<option value="">Rua…</option>';
+  if (dest.camara && posLivresMap[dest.camara]) {
+    ruaOpts += Object.entries(posLivresMap[dest.camara]).map(([rua, pos]) =>
+      `<option value="${rua}" ${String(dest.rua)===rua?'selected':''}>R${String(rua).padStart(2,'0')} (${pos.length} livre${pos.length!==1?'s':''})</option>`
+    ).join('');
+  }
+
+  let posOpts = '<option value="">Posição…</option>';
+  if (dest.camara && dest.rua && posLivresMap[dest.camara]?.[dest.rua]) {
+    posOpts += posLivresMap[dest.camara][dest.rua].map(pos =>
+      `<option value="${pos}" ${dest.posicao===pos?'selected':''}>P${String(pos).padStart(2,'0')}</option>`
+    ).join('');
+  }
+
+  const valid = dest.camara && dest.rua && dest.posicao;
+  return `<div class="pallet-dest-row" onclick="event.stopPropagation()">
+    <select class="dest-sel" onchange="onDestChange('${palletId}','camara',this.value)">
+      <option value="">Câmara…</option>${camaraOpts}
+    </select>
+    <select class="dest-sel" ${!dest.camara?'disabled':''} onchange="onDestChange('${palletId}','rua',this.value)">${ruaOpts}</select>
+    <select class="dest-sel" ${!dest.rua?'disabled':''} onchange="onDestChange('${palletId}','posicao',this.value)">${posOpts}</select>
+    ${valid?'<span class="dest-valid">✔</span>':''}
+  </div>`;
+}
+
+function onDestChange(palletId, field, value) {
+  if (!palletDestinos[palletId]) palletDestinos[palletId] = {};
+  if (field === 'camara') {
+    palletDestinos[palletId] = { camara: value || undefined };
+  } else if (field === 'rua') {
+    palletDestinos[palletId].rua = value ? Number(value) : undefined;
+    delete palletDestinos[palletId].posicao;
+  } else {
+    palletDestinos[palletId].posicao = value ? Number(value) : undefined;
+  }
+  renderModalPallets();
+  atualizarContadorModal();
+}
+
 function renderModalPallets() {
   const lista = document.getElementById('modal-pallets-lista');
   if (!modalPallets.length) {
-    lista.innerHTML = '<span style="color:var(--text-muted);font-size:.82rem">Nenhum pallet em resfriamento no momento.</span>';
+    lista.innerHTML = '<span style="color:var(--text-muted);font-size:.82rem">Nenhum pallet em resfriamento.</span>';
     return;
   }
   lista.innerHTML = modalPallets.map(p => {
@@ -220,19 +290,18 @@ function renderModalPallets() {
     const temTemp = p.temp_saida != null;
     return `<div class="pallet-row ${sel?'selecionado':''}" onclick="togglePallet('${p.id}')">
       <input type="checkbox" ${sel?'checked':''} onclick="event.stopPropagation();togglePallet('${p.id}')">
-      <div class="pallet-row-info">
+      <div class="pallet-row-info" style="flex:1">
         <div class="pallet-row-id">Pallet ${p.id}</div>
         <div class="pallet-row-meta">${p.variedade||'—'} · ${p.qtd_caixas||'?'} cx · ${p.produtor||'—'} · T${p.tunel||'?'} Boca ${p.boca||'?'}</div>
+        ${sel ? buildDestSelects(p.id) : ''}
       </div>
-      <span class="pallet-row-temp ${temTemp?'ok':'sem'}">
-        ${temTemp?'Polpa: '+p.temp_saida+'°C ✓':'Sem temp.'}
-      </span>
+      <span class="pallet-row-temp ${temTemp?'ok':'sem'}">${temTemp?'Polpa: '+p.temp_saida+'°C ✓':'Sem temp.'}</span>
     </div>`;
   }).join('');
 }
 
 function togglePallet(id) {
-  if (modalSelecionados.has(id)) modalSelecionados.delete(id);
+  if (modalSelecionados.has(id)) { modalSelecionados.delete(id); delete palletDestinos[id]; }
   else modalSelecionados.add(id);
   renderModalPallets();
   atualizarContadorModal();
@@ -242,6 +311,7 @@ function togglePallet(id) {
 function toggleSelecionarTodos() {
   if (modalSelecionados.size === modalPallets.length) {
     modalSelecionados = new Set();
+    palletDestinos = {};
     document.getElementById('chk-todos').checked = false;
   } else {
     modalSelecionados = new Set(modalPallets.map(p => p.id));
@@ -253,7 +323,11 @@ function toggleSelecionarTodos() {
 
 function atualizarContadorModal() {
   document.getElementById('modal-sel-count').textContent = modalSelecionados.size;
-  document.getElementById('btn-confirmar-oa').disabled = modalSelecionados.size === 0;
+  const allValid = modalSelecionados.size > 0 && [...modalSelecionados].every(id => {
+    const d = palletDestinos[id];
+    return d && d.camara && d.rua && d.posicao;
+  });
+  document.getElementById('btn-confirmar-oa').disabled = !allValid;
 }
 
 function fecharModal(e) {
@@ -266,12 +340,16 @@ function fecharModalDireto() {
 
 async function confirmarCriarOA() {
   if (!modalSelecionados.size) return;
+  const operador = document.getElementById('modal-operador')?.value?.trim() || 'Operador';
+  const destinos = [...modalSelecionados].map(id => ({ pallet_id: id, ...palletDestinos[id] }));
   try {
     const result = await api.post('/resfriamento/oa', {
       pallet_ids: Array.from(modalSelecionados),
       sessao_id: sessaoAtiva ? sessaoAtiva.id : null,
+      destinos,
+      operador,
     });
-    showToast(`OA ${result.oa_id} criada com ${result.pallets.length} pallet(s).`, 'success');
+    showToast(`OA ${result.oa_id} programada com ${result.pallets.length} pallet(s).`, 'success');
     fecharModalDireto();
     await renderOAs();
     await renderAguardandoOA();
