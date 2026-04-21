@@ -278,8 +278,8 @@ tr:hover td { background: var(--surface2); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Área / Controle dinâmico ── */
-.ac-list { display: flex; flex-direction: column; gap: 10px; }
-.ac-row { display: grid; grid-template-columns: 1fr 1fr 130px 36px; gap: 8px; align-items: end; }
+.ac-list { display: contents; }
+.ac-row { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) 130px 36px; gap: 14px; align-items: end; grid-column: 1 / -1; }
 .ac-row .ac-field { display: flex; flex-direction: column; gap: 4px; }
 .ac-row .ac-field label { font-size: .72rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
 .ac-row .ac-field input { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 7px 10px; font-size: .85rem; width: 100%; }
