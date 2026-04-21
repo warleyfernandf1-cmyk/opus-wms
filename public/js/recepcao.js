@@ -70,19 +70,22 @@ function addAreaControle(areaVal = '', controleVal = '', qtdVal = '') {
   row.className = 'ac-row';
   row.dataset.id = id;
   row.innerHTML = `
-    <div class="ac-field">
+    <div class="field">
       <label>Área</label>
       <input type="text" data-field="area" placeholder="Ex: T-01" value="${escapeHtml(areaVal)}" required>
     </div>
-    <div class="ac-field">
+    <div class="field">
       <label>Controle</label>
       <input type="text" data-field="controle" placeholder="Ex: CTRL-01" value="${escapeHtml(controleVal)}" required>
     </div>
-    <div class="ac-field">
-      <label>Qtd Caixas</label>
+    <div class="field">
+      <label>Qtde cx p/controle</label>
       <input type="number" data-field="qtd_caixas" placeholder="0" min="1" value="${qtdVal}" required>
     </div>
-    <button type="button" class="ac-remove" title="Remover linha">✕</button>
+    <div class="field ac-remove-wrap">
+      <label>&nbsp;</label>
+      <button type="button" class="ac-remove" title="Remover">✕</button>
+    </div>
   `;
 
   row.querySelector('.ac-remove').addEventListener('click', () => {
@@ -101,8 +104,11 @@ function addAreaControle(areaVal = '', controleVal = '', qtdVal = '') {
 }
 
 function updateRemoveButtons() {
-  const btns = document.querySelectorAll('.ac-remove');
-  btns.forEach(btn => { btn.disabled = btns.length === 1; });
+  const rows = document.querySelectorAll('.ac-row');
+  rows.forEach(row => {
+    const wrap = row.querySelector('.ac-remove-wrap');
+    if (wrap) wrap.style.display = rows.length === 1 ? 'none' : '';
+  });
 }
 
 function collectAreasControles() {
