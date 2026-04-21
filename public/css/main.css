@@ -294,5 +294,4 @@ tr:hover td { background: var(--surface2); }
 .dist-status.warn { background: rgba(239,68,68,.12);  color: var(--danger);  display: block; }
 .dist-status.info { background: rgba(99,102,241,.12); color: var(--accent);  display: block; }
 .form-grid select { -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2394a3b8' d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; cursor: pointer; }
-.section-divider { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
-.section-divider .section-label-inline { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 12px; }
+
