@@ -37,10 +37,27 @@ def listar_oas():
     return svc.listar_oas()
 
 
+@router.get("/posicoes-disponiveis")
+def posicoes_disponiveis():
+    """
+    Retorna câmaras → ruas → posições livres com contadores de lotação.
+    Usado pelo modal de criação de OA para selects cascata.
+    """
+    return svc.posicoes_disponiveis()
+
+
 @router.post("/oa")
 def criar_oa(body: CriarOAIn):
-    """Cria OA com pallets selecionados. Independente de finalizar sessão."""
-    return svc.criar_oa(pallet_ids=body.pallet_ids, sessao_id=body.sessao_id)
+    """
+    Cria OA com pallets selecionados e destinos por pallet.
+    Reserva as posições indicadas (status → reservada_oa).
+    OA fica com status 'programada'.
+    """
+    return svc.criar_oa(
+        pallet_ids=body.pallet_ids,
+        sessao_id=body.sessao_id,
+        destinos=body.destinos,
+    )
 
 
 @router.post("/oa/{oa_id}/executar")
@@ -48,6 +65,7 @@ def executar_oa(oa_id: str):
     """
     Executa a OA — move pallets resfriamento→armazenamento.
     Valida temperaturas registradas e sessão do túnel encerrada.
+    Ocupa as posições reservadas.
     """
     return svc.executar_oa(oa_id)
 
