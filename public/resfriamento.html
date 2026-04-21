@@ -80,7 +80,7 @@
       display:flex; align-items:center; justify-content:center; z-index:1000; }
     .modal-overlay.hidden { display:none; }
     .modal { background:var(--surface); border:1px solid var(--border); border-radius:12px;
-      width:640px; max-height:80vh; display:flex; flex-direction:column; overflow:hidden; }
+      width:820px; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; }
     .modal-head { padding:16px 20px; border-bottom:1px solid var(--border);
       display:flex; justify-content:space-between; align-items:center; }
     .modal-head h2 { font-size:1rem; font-weight:600; margin:0; }
@@ -103,6 +103,19 @@
     .pallet-row-temp.sem { background:rgba(245,158,11,.15); color:#f59e0b; }
     .sel-all-row { display:flex; align-items:center; gap:8px; margin-bottom:10px;
       font-size:.8rem; color:var(--text-muted); cursor:pointer; }
+    .oa-badge-programada { background:rgba(99,102,241,.15); color:var(--accent); }
+    .pallet-dest-row { display:flex; gap:8px; padding:8px 0 2px; }
+    .dest-sel { flex:1; background:var(--surface); border:1px solid var(--border);
+      border-radius:6px; color:var(--text); padding:5px 8px; font-size:.78rem; outline:none; }
+    .dest-sel:focus { border-color:var(--accent); }
+    .dest-sel:disabled { opacity:.4; cursor:not-allowed; }
+    .dest-valid { color:var(--success); font-size:.72rem; margin-top:2px; }
+    .modal-operator { display:flex; align-items:center; gap:10px; margin-bottom:12px;
+      padding-bottom:12px; border-bottom:1px solid var(--border); font-size:.82rem; }
+    .modal-operator label { color:var(--muted); white-space:nowrap; }
+    .modal-operator input { flex:1; background:var(--surface2); border:1px solid var(--border);
+      border-radius:6px; color:var(--text); padding:6px 10px; font-size:.82rem; outline:none; }
+    .modal-operator input:focus { border-color:var(--accent); }
   </style>
 </head>
 <body>
@@ -240,6 +253,10 @@
       <button class="btn btn-ghost btn-sm" onclick="fecharModalDireto()">✕</button>
     </div>
     <div class="modal-body">
+      <div class="modal-operator">
+        <label>Operador:</label>
+        <input type="text" id="modal-operador" placeholder="Nome do operador" value="Operador">
+      </div>
       <div class="sel-all-row" onclick="toggleSelecionarTodos()">
         <input type="checkbox" id="chk-todos">
         <span>Selecionar todos os pallets</span>
