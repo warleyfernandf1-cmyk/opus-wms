@@ -279,12 +279,11 @@ tr:hover td { background: var(--surface2); }
 
 /* ── Área / Controle dinâmico ── */
 .ac-list { display: contents; }
-.ac-row { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) 130px 36px; gap: 14px; align-items: end; grid-column: 1 / -1; }
-.ac-row .ac-field { display: flex; flex-direction: column; gap: 4px; }
-.ac-row .ac-field label { font-size: .72rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
-.ac-row .ac-field input { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 7px 10px; font-size: .85rem; width: 100%; }
-.ac-row .ac-field input:focus { outline: none; border-color: var(--accent); }
-.ac-remove { background: transparent; border: 1px solid var(--danger); color: var(--danger); border-radius: 6px; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s; flex-shrink: 0; }
+.ac-row { display: contents; }
+
+.ac-remove-wrap { display: flex; flex-direction: column; }
+.ac-remove-wrap label { font-size: .75rem; color: transparent; font-weight: 500; }
+.ac-remove { background: transparent; border: 1px solid var(--danger); color: var(--danger); border-radius: 6px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s; }
 .ac-remove:hover { background: rgba(239,68,68,.15); }
 .ac-remove:disabled { opacity: .35; cursor: not-allowed; }
 .ac-add-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 7px 14px; background: transparent; border: 1px dashed var(--accent); color: var(--accent); border-radius: 8px; font-size: .82rem; font-weight: 600; cursor: pointer; transition: background .15s; }
