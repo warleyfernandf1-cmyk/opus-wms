@@ -279,7 +279,7 @@ tr:hover td { background: var(--surface2); }
 
 /* ── Área / Controle dinâmico ── */
 .ac-list { display: flex; flex-direction: column; gap: 10px; }
-.ac-row { display: grid; grid-template-columns: 1fr 1fr 130px 36px; gap: 8px; align-items: end; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.ac-row { display: grid; grid-template-columns: 1fr 1fr 130px 36px; gap: 8px; align-items: end; }
 .ac-row .ac-field { display: flex; flex-direction: column; gap: 4px; }
 .ac-row .ac-field label { font-size: .72rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
 .ac-row .ac-field input { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 7px 10px; font-size: .85rem; width: 100%; }
