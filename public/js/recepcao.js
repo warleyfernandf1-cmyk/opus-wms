@@ -212,9 +212,9 @@ function normalizeEmbalagem(value) {
   return asText(value);
 }
 function normalizeProdutor(value) {
-  const tokens = asText(value).replace(/\s+/g,' ').split(' ').filter(Boolean);
-  if (!tokens.length) return '';
-  return tokens.length === 1 ? tokens[0] : `${tokens[0]} ${tokens[tokens.length - 1]}`;
+  const words = asText(value).match(/[A-Za-zÀ-ÖØ-öø-ÿ]+/g) || [];
+  if (!words.length) return '';
+  return words.length === 1 ? words[0] : `${words[0]} ${words[words.length - 1]}`;
 }
 function normalizeCaixa(value) {
   const raw = asText(value);
