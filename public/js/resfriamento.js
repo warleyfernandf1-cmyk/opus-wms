@@ -160,20 +160,37 @@ async function renderOAs() {
     }
     container.innerHTML = oas.map(oa => {
       const pallets = oa.pallets_detalhes || [];
+      const destinos = (oa.dados || {}).destinos || [];
       const criada = oa.criada_em ? new Date(oa.criada_em).toLocaleString('pt-BR') : '—';
-      const status = oa.status || 'pendente';
-      const executada = status === 'executada';
-      const programada = status === 'programada';
-      const badgeCls = executada ? 'oa-badge-executada' : programada ? 'oa-badge-programada' : 'oa-badge-pendente';
-      const tags = pallets.map(p =>
-        `<span class="oa-pallet-tag">${p.id} · T${p.tunel||'?'} B${p.boca||'?'}${p.temp_saida!=null?' ✓':' ⚠'}</span>`
-      ).join('');
-      return `<div class="oa-card">
+      const status = oa.status || 'programada';
+      const concluida = status === 'concluida' || status === 'executada';
+      const emExecucao = status === 'em_execucao';
+      const badgeMap = {
+        programada: 'oa-badge-programada',
+        em_execucao: 'oa-badge-em_execucao',
+        concluida: 'oa-badge-concluida',
+        executada: 'oa-badge-concluida',
+        pendente: 'oa-badge-pendente',
+      };
+      const tags = pallets.map(p => {
+        const dest = destinos.find(d => d.pallet_id === p.id);
+        const destLabel = dest ? ` → C${dest.camara}·R${dest.rua}·P${dest.posicao}` : '';
+        return `<span class="oa-pallet-tag">${p.id}${destLabel}${p.temp_saida!=null?' ✓':' ⚠'}</span>`;
+      }).join('');
+
+      const acoes = concluida
+        ? `<button class="btn btn-ghost btn-sm" onclick="imprimirRelatorio('${oa.id}')">📄 PDF</button>`
+        : `<button class="btn btn-ghost btn-sm" onclick="imprimirRelatorio('${oa.id}')">📄 PDF</button>
+           <button class="btn btn-primary btn-sm" onclick="abrirModalExec('${oa.id}')">
+             ${emExecucao ? '▶ Continuar' : '▶ Executar'}
+           </button>`;
+
+      return `<div class="oa-card" id="oa-card-${oa.id}">
         <div class="oa-card-header">
           <span class="oa-id">${oa.id}</span>
           <div style="display:flex;gap:8px;align-items:center">
-            <span class="oa-badge ${badgeCls}">${status}</span>
-            ${!executada ? `<button class="btn btn-primary btn-sm" onclick="executarOA('${oa.id}')">▶ Executar</button>` : ''}
+            <span class="oa-badge ${badgeMap[status]||'oa-badge-programada'}">${status}</span>
+            ${acoes}
           </div>
         </div>
         <div class="oa-meta">Criada em ${criada} · ${pallets.length} pallet(s)</div>
@@ -185,13 +202,198 @@ async function renderOAs() {
   }
 }
 
-async function executarOA(oaId) {
+/* ═══════════════════════════════════════════════════════════════
+   MODAL DE EXECUÇÃO DE OA — Bipagem com checklist
+   ═══════════════════════════════════════════════════════════════ */
+
+let execOaId = null;
+let execOaDados = null;
+
+async function abrirModalExec(oaId) {
+  execOaId = oaId;
+  document.getElementById('modal-exec-overlay').classList.remove('hidden');
+  document.getElementById('exec-oa-titulo').textContent = `Executar ${oaId}`;
+  document.getElementById('exec-checklist').innerHTML =
+    '<span style="color:var(--text-muted);font-size:.82rem">Iniciando...</span>';
+  document.getElementById('btn-concluir-oa').disabled = true;
+  document.getElementById('bip-alerta').className = 'bip-alerta';
+  document.getElementById('bip-input').value = '';
+
   try {
-    await api.post(`/resfriamento/oa/${oaId}/executar`, {});
-    showToast(`OA ${oaId} executada! Pallets movidos para armazenamento.`, 'success');
+    // Inicia execução no backend (programada → em_execucao)
+    execOaDados = await api.post(`/resfriamento/oa/${oaId}/iniciar-execucao`, {});
+    renderChecklist();
+    // Foca o input de bipagem
+    setTimeout(() => document.getElementById('bip-input').focus(), 100);
+  } catch(e) {
+    showToast(e.message, 'error');
+    fecharModalExec();
+  }
+}
+
+function renderChecklist() {
+  if (!execOaDados) return;
+  const pallet_ids = (execOaDados.dados || {}).pallets || [];
+  const destinos = (execOaDados.dados || {}).destinos || [];
+  const bipados = execOaDados.itens_bipados || [];
+  const total = pallet_ids.length;
+  const count = bipados.length;
+
+  // Progresso
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  document.getElementById('exec-progresso').textContent = `${count} / ${total}`;
+  const barra = document.getElementById('exec-barra');
+  barra.style.width = pct + '%';
+  barra.className = 'bip-progress-bar' + (count === total ? ' completo' : '');
+
+  // Checklist
+  document.getElementById('exec-checklist').innerHTML = pallet_ids.map(pid => {
+    const bipado = bipados.includes(pid);
+    const dest = destinos.find(d => d.pallet_id === pid);
+    const destLabel = dest ? `C${dest.camara} · Rua ${dest.rua} · Posição ${dest.posicao}` : '—';
+    return `<div class="bip-item ${bipado ? 'bipado' : ''}" id="bip-item-${pid}">
+      <span class="bip-check">${bipado ? '✓' : '○'}</span>
+      <div class="bip-item-info">
+        <div class="bip-item-id">Pallet ${pid}</div>
+        <div class="bip-item-dest">Destino: ${destLabel}</div>
+      </div>
+      ${bipado ? '<span style="font-size:.72rem;color:#22c55e;font-weight:600">Bipado</span>' : ''}
+    </div>`;
+  }).join('');
+
+  // Rodapé
+  const completo = count === total && total > 0;
+  document.getElementById('btn-concluir-oa').disabled = !completo;
+  document.getElementById('exec-foot-info').textContent = completo
+    ? '✓ Todos os pallets conferidos. Clique em Concluir OA.'
+    : `Bipe todos os pallets para habilitar a conclusão. (${total - count} pendente(s))`;
+}
+
+async function confirmarBipagem() {
+  const input = document.getElementById('bip-input');
+  const palletId = input.value.trim();
+  if (!palletId || !execOaId) return;
+
+  const alerta = document.getElementById('bip-alerta');
+
+  try {
+    const result = await api.post(`/resfriamento/oa/${execOaId}/bipar`, { pallet_id: palletId });
+    // Atualiza estado local
+    if (!execOaDados.itens_bipados) execOaDados.itens_bipados = [];
+    execOaDados.itens_bipados.push(palletId);
+
+    // Feedback visual e sonoro de sucesso
+    input.value = '';
+    input.className = 'bip-input ok';
+    alerta.className = 'bip-alerta ok';
+    alerta.textContent = `✓ Pallet ${palletId} confirmado!`;
+    tocarSom('ok');
+    setTimeout(() => { input.className = 'bip-input'; alerta.className = 'bip-alerta'; }, 1500);
+
+    renderChecklist();
+    if (result.completo) {
+      alerta.className = 'bip-alerta ok';
+      alerta.textContent = '✓ Todos os pallets bipados! Clique em Concluir OA.';
+      tocarSom('completo');
+    }
+  } catch(e) {
+    // Feedback visual e sonoro de erro
+    input.className = 'bip-input erro';
+    alerta.className = 'bip-alerta erro';
+    alerta.textContent = `✗ ${e.message}`;
+    tocarSom('erro');
+    setTimeout(() => { input.className = 'bip-input'; }, 800);
+  }
+  input.focus();
+}
+
+function tocarSom(tipo) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    if (tipo === 'ok') {
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    } else if (tipo === 'completo') {
+      osc.frequency.value = 1200;
+      gain.gain.setValueAtTime(0.4, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    } else {
+      osc.frequency.value = 220;
+      gain.gain.setValueAtTime(0.4, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    }
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch(_) {}
+}
+
+async function concluirOA() {
+  if (!execOaId) return;
+  try {
+    await api.post(`/resfriamento/oa/${execOaId}/concluir`, {});
+    showToast(`OA ${execOaId} concluída! Pallets movidos para armazenamento.`, 'success');
+    fecharModalExec();
     await init();
   } catch(e) {
     showToast(e.message, 'error');
+  }
+}
+
+function fecharModalExec() {
+  document.getElementById('modal-exec-overlay').classList.add('hidden');
+  execOaId = null;
+  execOaDados = null;
+}
+
+// Enter no input de bipagem dispara confirmação
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('bip-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') confirmarBipagem();
+  });
+});
+
+/* ─── PDF de apoio ──────────────────────────────────────────── */
+
+async function imprimirRelatorio(oaId) {
+  try {
+    const oas = await api.get('/resfriamento/oas');
+    const oa = oas.find(o => o.id === oaId);
+    if (!oa) { showToast('OA não encontrada', 'error'); return; }
+
+    const pallets = oa.pallets_detalhes || [];
+    const destinos = (oa.dados || {}).destinos || [];
+    const now = new Date().toLocaleString('pt-BR');
+
+    document.getElementById('pdf-oa-id').textContent = oaId;
+    document.getElementById('pdf-data').textContent = now;
+    document.getElementById('pdf-id').textContent = oaId;
+    document.getElementById('pdf-status').textContent = (oa.status || '—').toUpperCase();
+    document.getElementById('pdf-criada').textContent = oa.criada_em
+      ? new Date(oa.criada_em).toLocaleString('pt-BR') : '—';
+    document.getElementById('pdf-total').textContent = pallets.length;
+    document.getElementById('pdf-rodape-data').textContent = now;
+
+    document.getElementById('pdf-tbody').innerHTML = pallets.map((p, i) => {
+      const dest = destinos.find(d => d.pallet_id === p.id);
+      return `<tr>
+        <td>${i + 1}</td>
+        <td><strong>${p.id}</strong></td>
+        <td>${dest?.camara || '—'}</td>
+        <td>${dest?.rua || '—'}</td>
+        <td>${dest?.posicao || '—'}</td>
+        <td>${p.temp_saida != null ? p.temp_saida + '°C' : '—'}</td>
+        <td style="text-align:center">□</td>
+      </tr>`;
+    }).join('');
+
+    window.print();
+  } catch(e) {
+    showToast('Erro ao gerar PDF: ' + e.message, 'error');
   }
 }
 
