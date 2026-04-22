@@ -329,7 +329,6 @@ def criar_oa(pallet_ids: list[str], sessao_id: str | None, destinos: list | None
         "sessao_id": sessao_id,
         "criada_em": now,
         "status": "programada",
-        "tunel": tunel,
         "dados": {
             "pallets": pallet_ids,
             "destinos": destinos_serializados,
