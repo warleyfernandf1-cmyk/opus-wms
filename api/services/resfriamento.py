@@ -18,12 +18,10 @@ from api.db.client import get_db
 
 
 def _next_oa_id(db) -> str:
-    today = datetime.utcnow().strftime("%Y%m%d")
-    prefix = f"OA-{today}-"
-    rows = db.table("ordens_armazenamento").select("id").like("id", f"{prefix}%").execute().data
+    rows = db.table("ordens_armazenamento").select("id").like("id", "OA-%").execute().data
     nums = [int(r["id"].split("-")[-1]) for r in rows if r["id"].split("-")[-1].isdigit()]
     seq = max(nums, default=0) + 1
-    return f"{prefix}{seq:03d}"
+    return f"OA-{seq:03d}"
 
 
 # ─── consultas ────────────────────────────────────────────────
