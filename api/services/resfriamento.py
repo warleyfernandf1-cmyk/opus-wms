@@ -18,10 +18,12 @@ from api.db.client import get_db
 
 
 def _next_oa_id(db) -> str:
-    rows = db.table("ordens_armazenamento").select("id").like("id", "OA-%").execute().data
+    today = datetime.utcnow().strftime("%Y%m%d")
+    prefix = f"OA-{today}-"
+    rows = db.table("ordens_armazenamento").select("id").like("id", f"{prefix}%").execute().data
     nums = [int(r["id"].split("-")[-1]) for r in rows if r["id"].split("-")[-1].isdigit()]
     seq = max(nums, default=0) + 1
-    return f"OA-{seq:03d}"
+    return f"{prefix}{seq:03d}"
 
 
 # ─── consultas ────────────────────────────────────────────────
@@ -55,9 +57,15 @@ def listar_sessoes(tunel: str | None = None, status: str | None = None) -> list:
 
 
 def pallets_em_resfriamento() -> list:
-    """Todos os pallets em resfriamento para o modal de criação de OA."""
+    """Pallets em resfriamento ainda não vinculados a nenhuma OA."""
     db = get_db()
-    return (
+
+    oas = db.table("ordens_armazenamento").select("dados").execute().data
+    ids_em_oa: set = set()
+    for oa in oas:
+        ids_em_oa.update((oa.get("dados") or {}).get("pallets", []))
+
+    pallets = (
         db.table("pallets")
         .select("id,nro_pallet,variedade,qtd_caixas,classificacao,produtor,"
                 "tunel,boca,temp_entrada,temp_saida,fase,updated_at")
@@ -66,6 +74,7 @@ def pallets_em_resfriamento() -> list:
         .execute()
         .data
     )
+    return [p for p in pallets if p["id"] not in ids_em_oa]
 
 
 def pallets_aguardando_oa() -> list:
