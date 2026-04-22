@@ -348,24 +348,23 @@ def criar_oa(pallet_ids: list[str], sessao_id: str | None, destinos: list | None
     return {"ok": True, "oa_id": oa_id, "pallets": pallet_ids, "destinos": destinos_serializados}
 
 
-def executar_oa(oa_id: str) -> dict:
+def iniciar_execucao_oa(oa_id: str) -> dict:
     """
-    Executa a OA — move pallets resfriamento → armazenamento.
-    Ocupa as posições reservadas (reservada_oa → ocupada).
-    Valida:
-      - Todos os pallets têm temp_saida registrada
-      - A sessão do túnel foi finalizada
+    Inicia a execução da OA — muda status programada → em_execucao.
+    Valida temperaturas e sessão encerrada antes de liberar a bipagem.
+    NÃO move pallets ainda — isso só ocorre em concluir_oa().
     """
     db = get_db()
     rows = db.table("ordens_armazenamento").select("*").eq("id", oa_id).execute().data
     if not rows:
         raise HTTPException(404, "OA não encontrada.")
     oa = rows[0]
-    if oa["status"] == "executada":
-        raise HTTPException(400, "OA já foi executada.")
+    if oa["status"] == "concluida":
+        raise HTTPException(400, "OA já foi concluída.")
+    if oa["status"] == "em_execucao":
+        return oa  # idempotente — retorna estado atual para reabrir o modal
 
     pallet_ids = (oa.get("dados") or {}).get("pallets", [])
-    destinos = (oa.get("dados") or {}).get("destinos", [])
     if not pallet_ids:
         raise HTTPException(400, "OA sem pallets vinculados.")
 
@@ -381,8 +380,7 @@ def executar_oa(oa_id: str) -> dict:
     sem_temp = [p["id"] for p in pallets if p.get("temp_saida") is None]
     if sem_temp:
         raise HTTPException(400,
-            f"A execução desta OA aguarda o registro de saída dos pallets no módulo Resfriamento. "
-            f"Pallets sem temperatura: {', '.join(sem_temp)}"
+            f"Registre a temperatura dos pallets antes de executar: {', '.join(sem_temp)}"
         )
 
     # Valida sessão finalizada
@@ -398,21 +396,91 @@ def executar_oa(oa_id: str) -> dict:
         )
         if sessao_ativa:
             raise HTTPException(400,
-                f"A execução desta OA aguarda o encerramento da sessão do Túnel {tunel} "
-                f"no módulo Resfriamento."
+                f"Encerre a sessão do Túnel {tunel} antes de executar."
             )
 
     now = datetime.utcnow().isoformat()
+    db.table("ordens_armazenamento").update({
+        "status": "em_execucao",
+        "iniciada_em": now,
+        "itens_bipados": [],
+    }).eq("id", oa_id).execute()
 
-    # Monta mapa pallet → destino
+    return db.table("ordens_armazenamento").select("*").eq("id", oa_id).execute().data[0]
+
+
+def bipar_pallet(oa_id: str, pallet_id: str) -> dict:
+    """
+    Registra a bipagem de um pallet durante a execução da OA.
+    Valida que o pallet pertence à OA. Retorna estado atualizado.
+    """
+    db = get_db()
+    rows = db.table("ordens_armazenamento").select("*").eq("id", oa_id).execute().data
+    if not rows:
+        raise HTTPException(404, "OA não encontrada.")
+    oa = rows[0]
+    if oa["status"] != "em_execucao":
+        raise HTTPException(400, "OA não está em execução.")
+
+    pallet_ids = (oa.get("dados") or {}).get("pallets", [])
+    if pallet_id not in pallet_ids:
+        raise HTTPException(400, f"Pallet {pallet_id} não pertence a esta OA.")
+
+    itens_bipados = oa.get("itens_bipados") or []
+    if pallet_id in itens_bipados:
+        raise HTTPException(400, f"Pallet {pallet_id} já foi bipado.")
+
+    itens_bipados.append(pallet_id)
+    db.table("ordens_armazenamento").update({
+        "itens_bipados": itens_bipados,
+    }).eq("id", oa_id).execute()
+
+    return {
+        "ok": True,
+        "pallet_id": pallet_id,
+        "bipados": len(itens_bipados),
+        "total": len(pallet_ids),
+        "completo": len(itens_bipados) == len(pallet_ids),
+    }
+
+
+def concluir_oa(oa_id: str) -> dict:
+    """
+    Conclui a OA após 100% dos pallets bipados.
+    Move pallets resfriamento → armazenamento e ocupa as posições.
+    """
+    db = get_db()
+    rows = db.table("ordens_armazenamento").select("*").eq("id", oa_id).execute().data
+    if not rows:
+        raise HTTPException(404, "OA não encontrada.")
+    oa = rows[0]
+    if oa["status"] != "em_execucao":
+        raise HTTPException(400, "OA não está em execução.")
+
+    pallet_ids = (oa.get("dados") or {}).get("pallets", [])
+    destinos = (oa.get("dados") or {}).get("destinos", [])
+    itens_bipados = oa.get("itens_bipados") or []
+
+    nao_bipados = [p for p in pallet_ids if p not in itens_bipados]
+    if nao_bipados:
+        raise HTTPException(400,
+            f"Bipe todos os pallets antes de concluir. Pendentes: {', '.join(nao_bipados)}"
+        )
+
+    now = datetime.utcnow().isoformat()
     destino_map = {d["pallet_id"]: d for d in destinos}
+
+    pallets = (
+        db.table("pallets")
+        .select("id,fase,temp_saida,tunel")
+        .in_("id", pallet_ids)
+        .execute()
+        .data
+    )
 
     for p in pallets:
         dest = destino_map.get(p["id"])
-        update_data = {
-            "fase": "armazenamento",
-            "updated_at": now,
-        }
+        update_data = {"fase": "armazenamento", "updated_at": now}
         if dest:
             update_data["camara"] = dest.get("camara")
             update_data["rua"] = dest.get("rua")
@@ -420,7 +488,6 @@ def executar_oa(oa_id: str) -> dict:
 
         db.table("pallets").update(update_data).eq("id", p["id"]).execute()
 
-        # Ocupa a posição
         if dest and dest.get("pos_id"):
             db.table("posicoes_camara").update({
                 "status": "ocupada",
@@ -438,7 +505,7 @@ def executar_oa(oa_id: str) -> dict:
         }).execute()
 
     db.table("ordens_armazenamento").update({
-        "status": "executada",
+        "status": "concluida",
         "executada_em": now,
     }).eq("id", oa_id).execute()
 
