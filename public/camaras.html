@@ -4,8 +4,186 @@
   <meta charset="UTF-8">
   <title>Câmaras — Opus WMS</title>
   <link rel="stylesheet" href="css/main.css">
+  <style>
+    /* ── Células enriquecidas v2 ─────────────────────────────────────────────
+       Herdam as variáveis CSS do design system (main.css).
+       As classes .livre / .ocupada / .reservada / .gap seguem a mesma
+       semântica de cores já definida em main.css (.pos-cell.*).
+    ──────────────────────────────────────────────────────────────────────── */
+
+    /* Wrapper geral do mapa — scroll horizontal se necessário */
+    #camara-map { overflow-x: auto; overflow-y: visible; }
+
+    .camv2-wrapper {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 100%;
+    }
+
+    /* Linha (rua ou corredor) */
+    .camv2-row {
+      display: flex;
+      align-items: stretch;
+      gap: 3px;
+    }
+
+    /* Label lateral (R01, COR…) */
+    .camv2-row-label {
+      width: 44px;
+      min-width: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 6px;
+      font-size: .65rem;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: .04em;
+      flex-shrink: 0;
+    }
+
+    /* Cabeçalho de posição (P01, P02…) */
+    .camv2-col-header {
+      width: 72px;
+      min-width: 72px;
+      text-align: center;
+      font-size: .63rem;
+      font-weight: 600;
+      color: var(--muted);
+      padding-bottom: 4px;
+      letter-spacing: .04em;
+    }
+
+    /* Separador entre ruas e corredor */
+    .camv2-separator {
+      height: 8px;
+      margin-left: 44px;         /* alinha com as células */
+      border-top: 1px dashed var(--border);
+      margin-top: 2px;
+      margin-bottom: 2px;
+    }
+
+    /* ── Célula base ── */
+    .pos-cell-v2 {
+      width: 72px;
+      min-width: 72px;
+      height: 72px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      padding: 4px 3px;
+      cursor: default;
+      transition: border-color .12s, box-shadow .12s;
+      overflow: hidden;
+      text-align: center;
+    }
+
+    .pos-cell-v2:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+      z-index: 2;
+      position: relative;
+    }
+
+    /* Livre */
+    .pos-cell-v2.livre {
+      background: rgba(34, 197, 94, .10);
+      border-color: rgba(34, 197, 94, .25);
+    }
+    .pos-cell-v2.livre:hover { border-color: rgba(34, 197, 94, .7); box-shadow: 0 0 0 1px rgba(34,197,94,.4); }
+
+    /* Ocupada */
+    .pos-cell-v2.ocupada {
+      background: rgba(99, 102, 241, .12);
+      border-color: rgba(99, 102, 241, .35);
+    }
+    .pos-cell-v2.ocupada:hover { border-color: var(--accent); }
+
+    /* Reservada */
+    .pos-cell-v2.reservada {
+      background: rgba(245, 158, 11, .12);
+      border-color: rgba(245, 158, 11, .35);
+    }
+    .pos-cell-v2.reservada:hover { border-color: var(--warning); box-shadow: 0 0 0 1px rgba(245,158,11,.4); }
+
+    /* Gap / Porta */
+    .pos-cell-v2.gap {
+      background: transparent;
+      border-color: transparent;
+      opacity: .18;
+      cursor: default;
+    }
+    .pos-cell-v2.gap:hover { border-color: transparent; box-shadow: none; }
+
+    /* Placeholder (posição inexistente naquela rua) */
+    .pos-cell-v2.placeholder {
+      background: transparent;
+      border-color: transparent;
+      pointer-events: none;
+    }
+
+    /* ── Textos internos da célula ── */
+    .pcv2-id {
+      font-size: .72rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 66px;
+    }
+
+    .pcv2-var {
+      font-size: .6rem;
+      color: var(--muted);
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 66px;
+    }
+
+    .pcv2-cls {
+      font-size: .56rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--accent);
+      opacity: .85;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 66px;
+    }
+
+    /* ── Abas de câmara ── */
+    .btn-camara-tab {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 7px;
+      padding: 6px 16px;
+      font-size: .8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-camara-tab:hover { color: var(--text); background: var(--surface2); }
+    .btn-camara-tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+  </style>
 </head>
 <body>
+
 <aside id="sidebar">
   <div class="logo">Opus WMS <span>Warehouse Management</span></div>
   <nav>
@@ -25,29 +203,50 @@
     <a href="historico.html"><span class="icon">🕓</span> Histórico</a>
   </nav>
 </aside>
+
 <div id="main">
-  <header><h1>Câmaras</h1><span class="badge">Mapa Fidedigno</span></header>
+  <header>
+    <h1>Câmaras</h1>
+    <span class="badge">Mapa Fidedigno</span>
+  </header>
+
   <div class="content">
 
+    <!-- Toolbar: abas + legenda -->
     <div class="toolbar">
-      <button class="btn btn-ghost btn-sm" id="btn-c01" onclick="renderCamara('01')">Câmara 01</button>
-      <button class="btn btn-ghost btn-sm" id="btn-c02" onclick="renderCamara('02')">Câmara 02</button>
-      <div class="flex gap-2 items-center text-sm" style="margin-left:auto">
-        <span class="pos-cell livre" style="width:14px;height:14px"></span> Livre
-        <span class="pos-cell ocupada" style="width:14px;height:14px"></span> Ocupada
-        <span class="pos-cell reservada" style="width:14px;height:14px"></span> Reservada
-        <span class="pos-cell gap" style="width:14px;height:14px"></span> Porta
+      <button class="btn-camara-tab active" data-cam="01" onclick="renderCamara('01')">Câmara 01</button>
+      <button class="btn-camara-tab"        data-cam="02" onclick="renderCamara('02')">Câmara 02</button>
+
+      <div class="flex gap-2 items-center text-sm" style="margin-left:auto;gap:12px">
+        <span style="display:flex;align-items:center;gap:5px">
+          <span style="width:12px;height:12px;border-radius:3px;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.35);display:inline-block"></span>
+          Livre
+        </span>
+        <span style="display:flex;align-items:center;gap:5px">
+          <span style="width:12px;height:12px;border-radius:3px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);display:inline-block"></span>
+          Ocupada
+        </span>
+        <span style="display:flex;align-items:center;gap:5px">
+          <span style="width:12px;height:12px;border-radius:3px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);display:inline-block"></span>
+          Reservada
+        </span>
+        <span style="display:flex;align-items:center;gap:5px">
+          <span style="width:12px;height:12px;border-radius:3px;background:transparent;border:1px solid var(--border);opacity:.3;display:inline-block"></span>
+          Porta
+        </span>
       </div>
     </div>
 
+    <!-- Card do mapa -->
     <div class="card">
       <div class="card-title" id="camara-titulo">Câmara 01</div>
-      <div id="camara-map" style="overflow-x:auto">Carregando...</div>
+      <div id="camara-map">Carregando...</div>
       <div class="mt-4 text-sm text-muted" id="camara-legenda"></div>
     </div>
 
   </div>
 </div>
+
 <script src="js/api.js"></script>
 <script src="js/camaras.js"></script>
 </body>
