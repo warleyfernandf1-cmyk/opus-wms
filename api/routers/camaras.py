@@ -11,10 +11,34 @@ GAPS = {
 }
 
 
+def _enriquecer(posicoes: list, db) -> list:
+    """Busca os dados do pallet para cada posição ocupada e injeta inline."""
+    pallet_ids = [p["pallet_id"] for p in posicoes if p.get("pallet_id")]
+    if not pallet_ids:
+        return posicoes
+
+    pallets_raw = (
+        db.table("pallets")
+        .select("id, variedade, classificacao, qtd_caixas, produtor, data_embalamento, peso")
+        .in_("id", pallet_ids)
+        .execute()
+        .data
+    )
+    pallets_map = {p["id"]: p for p in pallets_raw}
+
+    for pos in posicoes:
+        pid = pos.get("pallet_id")
+        if pid and pid in pallets_map:
+            pos["pallet"] = pallets_map[pid]
+
+    return posicoes
+
+
 @router.get("/")
 def mapa_camaras():
     db = get_db()
     posicoes = db.table("posicoes_camara").select("*").execute().data
+    posicoes = _enriquecer(posicoes, db)
     resultado = {"01": [], "02": []}
     for p in posicoes:
         resultado[p["camara"]].append(p)
@@ -33,4 +57,9 @@ def mapa_camara(camara_id: str):
         .execute()
         .data
     )
-    return {"camara": camara_id, "posicoes": posicoes, "gaps": list(GAPS.get(camara_id, set()))}
+    posicoes = _enriquecer(posicoes, db)
+    return {
+        "camara": camara_id,
+        "posicoes": posicoes,
+        "gaps": list(GAPS.get(camara_id, set())),
+    }
