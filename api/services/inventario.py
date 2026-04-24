@@ -4,7 +4,7 @@ from api.db.client import get_db
 from api.models.schemas import InventarioItemRegistro
 
 
-def iniciar() -> dict:
+def iniciar(user_id: str | None = None) -> dict:
     db = get_db()
     ativos = db.table("inventarios").select("id").eq("status", "em_andamento").execute().data
     if ativos:
@@ -31,9 +31,16 @@ def listar() -> list:
     return get_db().table("inventarios").select("*").order("iniciado_em", desc=True).execute().data
 
 
-def registrar_item(inventario_id: str, body: InventarioItemRegistro) -> dict:
+def registrar_item(inventario_id: str, body: InventarioItemRegistro, user_id: str | None = None) -> dict:
     db = get_db()
-    rows = db.table("itens_inventario").select("*").eq("inventario_id", inventario_id).eq("pallet_id", body.pallet_id).execute().data
+    rows = (
+        db.table("itens_inventario")
+        .select("*")
+        .eq("inventario_id", inventario_id)
+        .eq("pallet_id", body.pallet_id)
+        .execute()
+        .data
+    )
     if not rows:
         raise HTTPException(404, "Item não encontrado no inventário")
 
@@ -46,7 +53,7 @@ def registrar_item(inventario_id: str, body: InventarioItemRegistro) -> dict:
     return {"ok": True}
 
 
-def finalizar(inventario_id: str) -> dict | None:
+def finalizar(inventario_id: str, user_id: str | None = None) -> dict | None:
     db = get_db()
     rows = db.table("inventarios").select("*").eq("id", inventario_id).execute().data
     if not rows:

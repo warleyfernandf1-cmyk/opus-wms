@@ -31,10 +31,6 @@ def _gerar_id(nro_pallet: str, db) -> str:
 
 
 def _garantir_sessao_ativa(tunel: str, db, now: str) -> str:
-    """
-    Retorna o ID da sessão ativa do túnel.
-    Cria uma nova sessão automaticamente se não houver nenhuma ativa.
-    """
     ativas = (
         db.table("sessoes_resfriamento")
         .select("id")
@@ -51,34 +47,24 @@ def _garantir_sessao_ativa(tunel: str, db, now: str) -> str:
     return result["id"]
 
 
-def registrar(body: PalletCreate) -> dict:
+def registrar(body: PalletCreate, user_id: str | None = None) -> dict:
     db = get_db()
     pallet_id = _gerar_id(body.nro_pallet, db)
     is_adicao = "-A-" in pallet_id
 
     now = datetime.utcnow().isoformat()
-
-    # Garante sessão ativa para o túnel — cria se não existir
     sessao_id = _garantir_sessao_ativa(body.tunel, db, now)
 
-    # Serializa areas_controles para JSONB
     areas_list = [item.model_dump() for item in body.areas_controles]
-
-    # Colunas legadas: primeiro item da lista (retrocompatibilidade)
     first = body.areas_controles[0]
-
-    # Exclui areas_controles do dump para inserção manual
     body_dict = body.model_dump(exclude={"areas_controles"})
 
     row = {
         "id": pallet_id,
         **body_dict,
         "data_embalamento": body.data_embalamento.isoformat(),
-        # Coluna legada — mantida para módulos que ainda lêem area/controle diretamente
         "area": first.area,
         "controle": first.controle,
-        # Nova coluna JSONB — armazena rastreabilidade proporcional completa
-        # Requer migration: ALTER TABLE pallets ADD COLUMN areas_controles JSONB;
         "areas_controles": json.dumps(areas_list),
         "fase": "resfriamento",
         "is_adicao": is_adicao,
@@ -96,12 +82,11 @@ def registrar(body: PalletCreate) -> dict:
             "sessao_id": sessao_id,
             "areas_controles": areas_list,
         },
+        "usuario": user_id,
         "created_at": now,
     }).execute()
 
     result = db.table("pallets").select("*").eq("id", pallet_id).execute().data[0]
-
-    # Desserializa areas_controles se vier como string do banco
     if result.get("areas_controles") and isinstance(result["areas_controles"], str):
         result["areas_controles"] = json.loads(result["areas_controles"])
 
@@ -109,7 +94,6 @@ def registrar(body: PalletCreate) -> dict:
 
 
 def listar() -> list:
-    """Lista pallets em recepção (compatibilidade — agora entram direto em resfriamento)."""
     db = get_db()
     rows = (
         db.table("pallets")
@@ -136,7 +120,7 @@ def buscar(pallet_id: str) -> dict | None:
     return row
 
 
-def rollback(pallet_id: str) -> dict:
+def rollback(pallet_id: str, user_id: str | None = None) -> dict:
     db = get_db()
     rows = db.table("pallets").select("*").eq("id", pallet_id).execute().data
     if not rows:
@@ -155,6 +139,7 @@ def rollback(pallet_id: str) -> dict:
         "acao": "rollback_recepcao",
         "fase_anterior": pallet["fase"],
         "dados": {"motivo": "exclusão via rollback"},
+        "usuario": user_id,
         "created_at": datetime.utcnow().isoformat(),
     }).execute()
 

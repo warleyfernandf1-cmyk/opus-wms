@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from api.auth.deps import get_current_user, requer_role
 from api.models.schemas import PalletCreate, PalletOut
 from api.services import recepcao as svc
 
@@ -6,8 +7,11 @@ router = APIRouter()
 
 
 @router.post("/", response_model=PalletOut, status_code=201)
-def registrar_pallet(body: PalletCreate):
-    return svc.registrar(body)
+def registrar_pallet(
+    body: PalletCreate,
+    user: dict = Depends(requer_role("admin", "planejador")),
+):
+    return svc.registrar(body, user_id=user["id"])
 
 
 @router.get("/", response_model=list[PalletOut])
@@ -24,6 +28,8 @@ def detalhe_pallet(pallet_id: str):
 
 
 @router.delete("/{pallet_id}/rollback", status_code=200)
-def rollback_recepcao(pallet_id: str):
-    """Única forma de excluir um pallet do sistema."""
-    return svc.rollback(pallet_id)
+def rollback_recepcao(
+    pallet_id: str,
+    user: dict = Depends(requer_role("admin")),
+):
+    return svc.rollback(pallet_id, user_id=user["id"])

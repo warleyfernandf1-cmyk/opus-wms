@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from api.db.client import get_db
 
 
-def complementacao(original_id: str, adicao_id: str) -> dict:
+def complementacao(original_id: str, adicao_id: str, user_id: str | None = None) -> dict:
     db = get_db()
     orig_rows = db.table("pallets").select("*").eq("id", original_id).execute().data
     adic_rows = db.table("pallets").select("*").eq("id", adicao_id).execute().data
@@ -46,13 +46,14 @@ def complementacao(original_id: str, adicao_id: str) -> dict:
             "qtd_anterior": orig["qtd_caixas"],
             "qtd_nova": nova_qtd,
         },
+        "usuario": user_id,
         "created_at": now,
     }).execute()
 
     return db.table("pallets").select("*").eq("id", original_id).execute().data[0]
 
 
-def juncao(id1: str, id2: str) -> dict:
+def juncao(id1: str, id2: str, user_id: str | None = None) -> dict:
     db = get_db()
     rows1 = db.table("pallets").select("*").eq("id", id1).execute().data
     rows2 = db.table("pallets").select("*").eq("id", id2).execute().data
@@ -86,6 +87,7 @@ def juncao(id1: str, id2: str) -> dict:
         "pallet_id": novo_id,
         "acao": "remonte_juncao",
         "dados": {"pallet_1": id1, "pallet_2": id2, "qtd_nova": nova_qtd},
+        "usuario": user_id,
         "created_at": now,
     }).execute()
 

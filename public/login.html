@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Opus WMS</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body class="login-body">
+
+<div class="login-card">
+  <div class="login-logo">
+    <div class="title">Opus WMS</div>
+    <div class="subtitle">Warehouse Management System</div>
+  </div>
+
+  <div class="field">
+    <label>E-mail</label>
+    <input id="email" type="email" placeholder="seu@email.com" autocomplete="username">
+  </div>
+
+  <div class="field" style="margin-top:14px;">
+    <label>Senha</label>
+    <input id="senha" type="password" placeholder="••••••••" autocomplete="current-password">
+  </div>
+
+  <button class="btn btn-primary" id="btn-login" style="width:100%;margin-top:22px;justify-content:center;">
+    Entrar
+  </button>
+
+  <div id="login-error" class="login-error"></div>
+</div>
+
+<script src="js/login.js"></script>
+</body>
+</html>

@@ -30,10 +30,6 @@ def posicoes_livres(camara: str | None = None) -> list:
 
 
 def aguardando_alocacao() -> list:
-    """
-    Retorna pallets em fase armazenamento que ainda não têm posição de câmara definida.
-    São os que saíram do túnel e aguardam ser alocados em câmara.
-    """
     db = get_db()
     return (
         db.table("pallets")
@@ -47,7 +43,7 @@ def aguardando_alocacao() -> list:
     )
 
 
-def alocar(body: AlocarPalletIn) -> dict:
+def alocar(body: AlocarPalletIn, user_id: str | None = None) -> dict:
     db = get_db()
     pos_id = f"C{body.camara}-R{body.rua:02d}-P{body.posicao:02d}"
 
@@ -86,13 +82,14 @@ def alocar(body: AlocarPalletIn) -> dict:
         "fase_anterior": "armazenamento",
         "fase_nova": "armazenamento",
         "dados": {"posicao": pos_id},
+        "usuario": user_id,
         "created_at": now,
     }).execute()
 
     return {"ok": True, "pallet_id": body.pallet_id, "posicao": pos_id}
 
 
-def rollback(pallet_id: str) -> dict:
+def rollback(pallet_id: str, user_id: str | None = None) -> dict:
     db = get_db()
     rows = db.table("pallets").select("*").eq("id", pallet_id).execute().data
     if not rows:
@@ -120,6 +117,7 @@ def rollback(pallet_id: str) -> dict:
         "acao": "rollback_armazenamento",
         "fase_anterior": "armazenamento",
         "fase_nova": "resfriamento",
+        "usuario": user_id,
         "created_at": now,
     }).execute()
 

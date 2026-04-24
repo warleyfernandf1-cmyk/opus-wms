@@ -18,7 +18,7 @@ def _next_op_id(db) -> str:
     return f"{prefix}{max(nums, default=0) + 1:03d}"
 
 
-def criar_ordem(body: OrdemPickingCreate) -> dict:
+def criar_ordem(body: OrdemPickingCreate, user_id: str | None = None) -> dict:
     db = get_db()
     now = datetime.utcnow().isoformat()
     op_id = _next_op_id(db)
@@ -57,6 +57,7 @@ def criar_ordem(body: OrdemPickingCreate) -> dict:
     db.table("historico").insert({
         "acao": "picking_criacao",
         "dados": {"op_id": op_id, "pallet_ids": body.pallet_ids},
+        "usuario": user_id,
         "created_at": now,
     }).execute()
 
@@ -72,7 +73,7 @@ def buscar_ordem(op_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
-def executar_ordem(op_id: str) -> dict:
+def executar_ordem(op_id: str, user_id: str | None = None) -> dict:
     db = get_db()
     rows = db.table("ordens_picking").select("*").eq("id", op_id).execute().data
     if not rows:
@@ -87,7 +88,9 @@ def executar_ordem(op_id: str) -> dict:
         if p_rows:
             p = p_rows[0]
             pos_id = f"C{p['camara']}-R{p['rua']:02d}-P{p['posicao']:02d}"
-            db.table("posicoes_camara").update({"status": "livre", "pallet_id": None, "reserva_id": None}).eq("id", pos_id).execute()
+            db.table("posicoes_camara").update(
+                {"status": "livre", "pallet_id": None, "reserva_id": None}
+            ).eq("id", pos_id).execute()
             db.table("pallets").update({"fase": "picking", "updated_at": now}).eq("id", pallet_id).execute()
             db.table("historico").insert({
                 "pallet_id": pallet_id,
@@ -95,6 +98,7 @@ def executar_ordem(op_id: str) -> dict:
                 "fase_anterior": "armazenamento",
                 "fase_nova": "picking",
                 "dados": {"op_id": op_id},
+                "usuario": user_id,
                 "created_at": now,
             }).execute()
 
@@ -102,7 +106,7 @@ def executar_ordem(op_id: str) -> dict:
     return {"ok": True, "op_id": op_id}
 
 
-def cancelar_ordem(op_id: str) -> dict:
+def cancelar_ordem(op_id: str, user_id: str | None = None) -> dict:
     db = get_db()
     rows = db.table("ordens_picking").select("*").eq("id", op_id).execute().data
     if not rows:
@@ -119,6 +123,7 @@ def cancelar_ordem(op_id: str) -> dict:
     db.table("historico").insert({
         "acao": "picking_cancelamento",
         "dados": {"op_id": op_id},
+        "usuario": user_id,
         "created_at": now,
     }).execute()
     return {"ok": True, "op_id": op_id, "posicoes_liberadas": op.get("posicoes", [])}

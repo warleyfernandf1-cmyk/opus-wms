@@ -204,7 +204,7 @@ def posicoes_disponiveis() -> dict:
 
 # ─── temperatura ──────────────────────────────────────────────
 
-def salvar_temp_pallet(pallet_id: str, temp_polpa: float, observacao: str | None, sessao_id: str | None) -> dict:
+def salvar_temp_pallet(pallet_id: str, temp_polpa: float, observacao: str | None, sessao_id: str | None, user_id: str | None = None) -> dict:
     """Persiste temperatura de polpa imediatamente. Pallet continua em resfriamento."""
     db = get_db()
     rows = db.table("pallets").select("*").eq("id", pallet_id).execute().data
@@ -229,6 +229,7 @@ def salvar_temp_pallet(pallet_id: str, temp_polpa: float, observacao: str | None
         "fase_anterior": "resfriamento",
         "fase_nova": "resfriamento",
         "dados": dados,
+        "usuario": user_id,
         "created_at": now,
     }).execute()
 
@@ -261,7 +262,7 @@ def finalizar_sessao(sessao_id: str) -> dict | None:
 
 # ─── OA ───────────────────────────────────────────────────────
 
-def criar_oa(pallet_ids: list[str], sessao_id: str | None, destinos: list | None = None) -> dict:
+def criar_oa(pallet_ids: list[str], sessao_id: str | None, destinos: list | None = None, user_id: str | None = None) -> dict:
     """
     Cria OA com pallets selecionados e destinos definidos.
     - Pallets devem estar em resfriamento.
@@ -342,6 +343,7 @@ def criar_oa(pallet_ids: list[str], sessao_id: str | None, destinos: list | None
             "fase_anterior": "resfriamento",
             "fase_nova": "resfriamento",
             "dados": {"oa_id": oa_id, "destino": destino_map.get(pid)},
+            "usuario": user_id,
             "created_at": now,
         }).execute()
 
@@ -444,7 +446,7 @@ def bipar_pallet(oa_id: str, pallet_id: str) -> dict:
     }
 
 
-def concluir_oa(oa_id: str) -> dict:
+def concluir_oa(oa_id: str, user_id: str | None = None) -> dict:
     """
     Conclui a OA após 100% dos pallets bipados.
     Move pallets resfriamento → armazenamento e ocupa as posições.
@@ -501,6 +503,7 @@ def concluir_oa(oa_id: str) -> dict:
             "fase_anterior": "resfriamento",
             "fase_nova": "armazenamento",
             "dados": {"oa_id": oa_id, "destino": dest},
+            "usuario": user_id,
             "created_at": now,
         }).execute()
 
@@ -514,7 +517,7 @@ def concluir_oa(oa_id: str) -> dict:
 
 # ─── rollback ─────────────────────────────────────────────────
 
-def rollback(pallet_id: str) -> dict:
+def rollback(pallet_id: str, user_id: str | None = None) -> dict:
     db = get_db()
     rows = db.table("pallets").select("*").eq("id", pallet_id).execute().data
     if not rows:
@@ -542,6 +545,7 @@ def rollback(pallet_id: str) -> dict:
         "acao": "rollback_resfriamento",
         "fase_anterior": "resfriamento",
         "fase_nova": "recepcao",
+        "usuario": user_id,
         "created_at": now,
     }).execute()
     return {"ok": True, "pallet_id": pallet_id}

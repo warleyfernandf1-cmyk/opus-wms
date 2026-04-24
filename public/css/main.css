@@ -294,3 +294,102 @@ tr:hover td { background: var(--surface2); }
 .dist-status.info { background: rgba(99,102,241,.12); color: var(--accent);  display: block; }
 .form-grid select { -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2394a3b8' d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; cursor: pointer; }
 
+/* ── Sidebar footer ─────────────────────────────────────────── */
+.sidebar-footer {
+  border-top: 1px solid var(--border);
+  padding: 12px 16px;
+  margin-top: auto;
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 10px;
+  overflow: hidden;
+}
+
+.sidebar-user .user-name {
+  font-size: .8rem;
+  font-weight: 600;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user .user-role {
+  font-size: .65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(99,102,241,.2);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.btn-logout {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: .8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all .15s;
+}
+
+.btn-logout:hover {
+  background: rgba(239,68,68,.1);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ── Login page ─────────────────────────────────────────────── */
+.login-body {
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 40px;
+}
+
+.login-logo {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.login-logo .title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: .5px;
+}
+
+.login-logo .subtitle {
+  color: var(--muted);
+  font-size: .82rem;
+  margin-top: 4px;
+}
+
+.login-error {
+  background: rgba(239,68,68,.12);
+  border: 1px solid rgba(239,68,68,.3);
+  color: var(--danger);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: .82rem;
+  margin-top: 14px;
+  display: none;
+}
+

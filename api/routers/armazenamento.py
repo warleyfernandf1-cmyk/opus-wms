@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from api.auth.deps import get_current_user, requer_role
 from api.models.schemas import AlocarPalletIn, PosicaoOut
 from api.services import armazenamento as svc
 
@@ -17,15 +18,20 @@ def posicoes_livres(camara: str | None = None):
 
 @router.get("/aguardando")
 def aguardando_alocacao():
-    """Pallets que saíram do túnel e ainda não foram alocados em câmara."""
     return svc.aguardando_alocacao()
 
 
 @router.post("/alocar")
-def alocar_pallet(body: AlocarPalletIn):
-    return svc.alocar(body)
+def alocar_pallet(
+    body: AlocarPalletIn,
+    user: dict = Depends(requer_role("admin", "planejador")),
+):
+    return svc.alocar(body, user_id=user["id"])
 
 
 @router.post("/{pallet_id}/rollback")
-def rollback_armazenamento(pallet_id: str):
-    return svc.rollback(pallet_id)
+def rollback_armazenamento(
+    pallet_id: str,
+    user: dict = Depends(requer_role("admin")),
+):
+    return svc.rollback(pallet_id, user_id=user["id"])

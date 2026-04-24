@@ -12,7 +12,7 @@ def _next_oe_id(db) -> str:
     return f"{prefix}{max(nums, default=0) + 1:03d}"
 
 
-def criar_ordem(body: OrdemExpedicaoCreate) -> dict:
+def criar_ordem(body: OrdemExpedicaoCreate, user_id: str | None = None) -> dict:
     db = get_db()
     now = datetime.utcnow().isoformat()
     oe_id = _next_oe_id(db)
@@ -37,7 +37,7 @@ def listar_ordens() -> list:
     return get_db().table("ordens_expedicao").select("*").order("criada_em", desc=True).execute().data
 
 
-def executar_ordem(oe_id: str) -> dict:
+def executar_ordem(oe_id: str, user_id: str | None = None) -> dict:
     db = get_db()
     rows = db.table("ordens_expedicao").select("*").eq("id", oe_id).execute().data
     if not rows:
@@ -55,6 +55,7 @@ def executar_ordem(oe_id: str) -> dict:
             "fase_anterior": "picking",
             "fase_nova": "expedido",
             "dados": {"oe_id": oe_id},
+            "usuario": user_id,
             "created_at": now,
         }).execute()
 

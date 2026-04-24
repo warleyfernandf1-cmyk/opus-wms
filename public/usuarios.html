@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Usuários — Opus WMS</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<aside id="sidebar">
+  <div class="logo">Opus WMS <span>Warehouse Management</span></div>
+  <nav>
+    <div class="section-label">Operacional</div>
+    <a href="index.html"><span class="icon">⊞</span> Dashboard</a>
+    <a href="recepcao.html"><span class="icon">↓</span> Recepção</a>
+    <a href="resfriamento.html"><span class="icon">❄</span> Resfriamento</a>
+    <a href="armazenamento.html"><span class="icon">⬛</span> Armazenamento</a>
+    <a href="remontes.html"><span class="icon">⇄</span> Remontes</a>
+    <a href="picking.html"><span class="icon">✂</span> Picking</a>
+    <a href="expedicao.html"><span class="icon">↑</span> Expedição</a>
+    <a href="inventario.html"><span class="icon">☑</span> Inventário</a>
+    <div class="section-label">Consulta</div>
+    <a href="camaras.html"><span class="icon">▦</span> Câmaras</a>
+    <a href="tuneis.html"><span class="icon">≡</span> Túneis</a>
+    <a href="relatorios.html"><span class="icon">📄</span> Relatórios</a>
+    <a href="historico.html"><span class="icon">🕓</span> Histórico</a>
+    <div class="section-label" id="label-admin" style="display:none">Administração</div>
+    <a href="usuarios.html" id="link-usuarios" style="display:none"><span class="icon">👤</span> Usuários</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <span class="user-name" id="sidebar-nome">—</span>
+      <span class="user-role" id="sidebar-role"></span>
+    </div>
+    <button class="btn-logout" onclick="logout()">↪ Sair</button>
+  </div>
+</aside>
+
+<div id="main">
+  <header>
+    <h1>Usuários</h1>
+    <span class="badge">Administração</span>
+  </header>
+  <div class="content">
+
+    <!-- Criar usuário -->
+    <div class="card">
+      <div class="card-title">Novo Usuário</div>
+      <div class="form-grid">
+        <div class="field"><label>Nome</label><input id="u-nome" placeholder="Nome completo"></div>
+        <div class="field"><label>E-mail</label><input id="u-email" type="email" placeholder="email@dominio.com"></div>
+        <div class="field">
+          <label>Perfil</label>
+          <select id="u-role">
+            <option value="operador">Operador</option>
+            <option value="planejador">Planejador</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="field"><label>Senha</label><input id="u-senha" type="password" placeholder="Mín. 8 caracteres"></div>
+      </div>
+      <div class="mt-4">
+        <button class="btn btn-primary" id="btn-criar">+ Criar Usuário</button>
+      </div>
+    </div>
+
+    <!-- Listagem -->
+    <div class="card">
+      <div class="flex justify-between items-center" style="margin-bottom:12px">
+        <div class="card-title" style="margin:0">Usuários Cadastrados</div>
+        <button class="btn btn-ghost btn-sm" id="btn-refresh">↻ Atualizar</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th>
+              <th>Último acesso</th><th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-usuarios">
+            <tr><td colspan="6" class="text-muted">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Modal editar -->
+    <div id="modal-editar" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center;">
+      <div class="card" style="width:420px;margin:0;">
+        <div class="card-title">Editar Usuário</div>
+        <input type="hidden" id="edit-id">
+        <div class="field" style="margin-bottom:12px"><label>Nome</label><input id="edit-nome"></div>
+        <div class="field" style="margin-bottom:20px">
+          <label>Perfil</label>
+          <select id="edit-role">
+            <option value="operador">Operador</option>
+            <option value="planejador">Planejador</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-primary" id="btn-salvar-edicao">Salvar</button>
+          <button class="btn btn-ghost" onclick="fecharModal()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal redefinir senha -->
+    <div id="modal-senha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center;">
+      <div class="card" style="width:380px;margin:0;">
+        <div class="card-title">Redefinir Senha</div>
+        <input type="hidden" id="senha-user-id">
+        <div class="field" style="margin-bottom:20px">
+          <label>Nova Senha</label>
+          <input id="nova-senha" type="password" placeholder="Mín. 8 caracteres">
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-primary" id="btn-salvar-senha">Salvar</button>
+          <button class="btn btn-ghost" onclick="fecharModalSenha()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/usuarios.js"></script>
+</body>
+</html>
