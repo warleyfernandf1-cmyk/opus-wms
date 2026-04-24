@@ -6,6 +6,11 @@ from api.services import armazenamento as svc
 router = APIRouter()
 
 
+@router.get("/pallets")
+def listar_armazenados():
+    return svc.listar_armazenados()
+
+
 @router.get("/camaras")
 def mapa_camaras():
     return svc.mapa_camaras()

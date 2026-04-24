@@ -29,6 +29,18 @@ def posicoes_livres(camara: str | None = None) -> list:
     return q.execute().data
 
 
+def listar_armazenados() -> list:
+    db = get_db()
+    return (
+        db.table("pallets")
+        .select("id,variedade,classificacao,qtd_caixas,camara,rua,posicao,updated_at")
+        .eq("fase", "armazenamento")
+        .order("updated_at", desc=True)
+        .execute()
+        .data
+    )
+
+
 def aguardando_alocacao() -> list:
     db = get_db()
     return (
