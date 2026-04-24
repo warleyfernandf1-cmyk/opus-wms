@@ -204,7 +204,7 @@ def posicoes_disponiveis() -> dict:
 
 # ─── temperatura ──────────────────────────────────────────────
 
-def salvar_temp_pallet(pallet_id: str, temp_polpa: float, observacao: str | None, sessao_id: str | None, user_id: str | None = None) -> dict:
+def salvar_temp_pallet(pallet_id: str, temp_polpa: float, observacao: str | None, sessao_id: str | None, foto_temp_saida: str | None = None, user_id: str | None = None) -> dict:
     """Persiste temperatura de polpa imediatamente. Pallet continua em resfriamento."""
     db = get_db()
     rows = db.table("pallets").select("*").eq("id", pallet_id).execute().data
@@ -215,13 +215,19 @@ def salvar_temp_pallet(pallet_id: str, temp_polpa: float, observacao: str | None
         raise HTTPException(400, f"Pallet não está em resfriamento (fase: {pallet['fase']}).")
 
     now = datetime.utcnow().isoformat()
-    db.table("pallets").update({"temp_saida": temp_polpa, "updated_at": now}).eq("id", pallet_id).execute()
+    update: dict = {"temp_saida": temp_polpa, "updated_at": now}
+    if foto_temp_saida:
+        update["foto_temp_saida"] = foto_temp_saida
+
+    db.table("pallets").update(update).eq("id", pallet_id).execute()
 
     dados: dict = {"temp_polpa": temp_polpa}
     if sessao_id:
         dados["sessao_id"] = sessao_id
     if observacao:
         dados["observacao"] = observacao
+    if foto_temp_saida:
+        dados["foto_temp_saida"] = foto_temp_saida
 
     db.table("historico").insert({
         "pallet_id": pallet_id,
@@ -549,3 +555,156 @@ def rollback(pallet_id: str, user_id: str | None = None) -> dict:
         "created_at": now,
     }).execute()
     return {"ok": True, "pallet_id": pallet_id}
+
+
+# ─── relatório de sessão ───────────────────────────────────────
+
+def relatorio_sessao(sessao_id: str) -> dict:
+    db = get_db()
+
+    sessoes = db.table("sessoes_resfriamento").select("*").eq("id", sessao_id).execute().data
+    if not sessoes:
+        raise HTTPException(404, "Sessão não encontrada")
+    sessao = sessoes[0]
+
+    pallets = (
+        db.table("pallets")
+        .select("id,nro_pallet,variedade,classificacao,qtd_caixas,boca,temp_entrada,temp_saida,"
+                "foto_temp_entrada,foto_espelho,foto_pallet_entrada,foto_temp_saida,created_at,updated_at")
+        .eq("sessao_id", sessao_id)
+        .order("boca")
+        .execute()
+        .data
+    )
+
+    pallet_ids = [p["id"] for p in pallets]
+    historico_rows = []
+    if pallet_ids:
+        historico_rows = (
+            db.table("historico")
+            .select("pallet_id,acao,usuario,created_at")
+            .in_("pallet_id", pallet_ids)
+            .in_("acao", ["recepcao", "temp_polpa_registrada"])
+            .execute()
+            .data
+        )
+
+    user_ids = {h["usuario"] for h in historico_rows if h.get("usuario")}
+    user_map: dict = {}
+    if user_ids:
+        users = (
+            db.table("usuarios")
+            .select("id,nome")
+            .in_("id", list(user_ids))
+            .execute()
+            .data
+        )
+        user_map = {u["id"]: u["nome"] for u in users}
+
+    hist_by_pallet: dict = {}
+    for h in historico_rows:
+        hist_by_pallet.setdefault(h["pallet_id"], []).append(h)
+
+    pallets_out = []
+    for p in pallets:
+        hist = hist_by_pallet.get(p["id"], [])
+        op_recepcao = next(
+            (user_map.get(h["usuario"], h["usuario"]) for h in hist if h["acao"] == "recepcao"),
+            None,
+        )
+        op_saida = next(
+            (user_map.get(h["usuario"], h["usuario"]) for h in hist if h["acao"] == "temp_polpa_registrada"),
+            None,
+        )
+        ts_recepcao = next((h["created_at"] for h in hist if h["acao"] == "recepcao"), None)
+        ts_saida = next((h["created_at"] for h in hist if h["acao"] == "temp_polpa_registrada"), None)
+        pallets_out.append({
+            **p,
+            "operador_recepcao": op_recepcao,
+            "operador_saida": op_saida,
+            "ts_recepcao": ts_recepcao,
+            "ts_saida": ts_saida,
+        })
+
+    temps_entrada = [p["temp_entrada"] for p in pallets if p.get("temp_entrada") is not None]
+    temps_saida = [p["temp_saida"] for p in pallets if p.get("temp_saida") is not None]
+    temp_media_entrada = round(sum(temps_entrada) / len(temps_entrada), 1) if temps_entrada else None
+    temp_media_saida = round(sum(temps_saida) / len(temps_saida), 1) if temps_saida else None
+
+    tempo_operacao = None
+    if sessao.get("iniciado_em") and sessao.get("finalizado_em"):
+        try:
+            fmt = "%Y-%m-%dT%H:%M:%S.%f" if "." in sessao["iniciado_em"] else "%Y-%m-%dT%H:%M:%S"
+            t0 = datetime.strptime(sessao["iniciado_em"][:26], fmt[:len(fmt)])
+            fmt2 = "%Y-%m-%dT%H:%M:%S.%f" if "." in sessao["finalizado_em"] else "%Y-%m-%dT%H:%M:%S"
+            t1 = datetime.strptime(sessao["finalizado_em"][:26], fmt2[:len(fmt2)])
+            diff = int((t1 - t0).total_seconds())
+            h, rem = divmod(diff, 3600)
+            m, s = divmod(rem, 60)
+            tempo_operacao = f"{h:02d}:{m:02d}:{s:02d}"
+        except Exception:
+            pass
+
+    return {
+        "sessao": sessao,
+        "pallets": pallets_out,
+        "estatisticas": {
+            "total_pallets": len(pallets),
+            "temp_media_entrada": temp_media_entrada,
+            "temp_media_saida": temp_media_saida,
+            "tempo_operacao": tempo_operacao,
+        },
+    }
+
+
+# ─── limpeza de fotos da sessão ───────────────────────────────
+
+def limpar_fotos_sessao(sessao_id: str) -> dict:
+    import os
+    db = get_db()
+
+    pallets = (
+        db.table("pallets")
+        .select("id,foto_temp_entrada,foto_espelho,foto_pallet_entrada,foto_temp_saida")
+        .eq("sessao_id", sessao_id)
+        .execute()
+        .data
+    )
+
+    foto_fields = ["foto_temp_entrada", "foto_espelho", "foto_pallet_entrada", "foto_temp_saida"]
+    urls = []
+    for p in pallets:
+        for f in foto_fields:
+            if p.get(f):
+                urls.append(p[f])
+
+    paths = []
+    supabase_url = os.getenv("SUPABASE_URL", "")
+    prefix = f"{supabase_url}/storage/v1/object/public/fotos-pallets/"
+    for url in urls:
+        if url.startswith(prefix):
+            paths.append(url[len(prefix):])
+        else:
+            # fallback: extract path after bucket name
+            marker = "/fotos-pallets/"
+            idx = url.find(marker)
+            if idx != -1:
+                paths.append(url[idx + len(marker):])
+
+    if paths:
+        try:
+            db.storage.from_("fotos-pallets").remove(paths)
+        except Exception:
+            pass
+
+    if pallets:
+        pallet_ids = [p["id"] for p in pallets]
+        for pid in pallet_ids:
+            db.table("pallets").update({
+                "foto_temp_entrada": None,
+                "foto_espelho": None,
+                "foto_pallet_entrada": None,
+                "foto_temp_saida": None,
+            }).eq("id", pid).execute()
+
+    return {"ok": True, "fotos_removidas": len(paths)}

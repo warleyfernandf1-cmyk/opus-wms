@@ -112,7 +112,8 @@
     <!-- Barra de sessão ativa -->
     <div class="sessao-bar" id="sessao-bar" style="display:none">
       <span class="sessao-tag" id="sessao-label">—</span>
-      <span id="sessao-info" style="color:var(--text-muted)"></span>
+      <span id="sessao-info" style="color:var(--text-muted);flex:1"></span>
+      <button class="btn btn-ghost btn-sm" id="btn-relatorio-sessao" style="display:none" onclick="gerarRelatorio()">📄 Relatório</button>
     </div>
 
     <!-- Grade de bocas -->
@@ -161,6 +162,23 @@
         <label>Observação resfriamento</label>
         <textarea id="input-obs" placeholder="Observações do resfriamento..." style="min-height:64px;resize:vertical"></textarea>
       </div>
+
+      <!-- Foto de saída -->
+      <div class="foto-grid" style="grid-template-columns:140px">
+        <div class="foto-widget">
+          <label>Temperatura de Saída</label>
+          <div class="foto-area" id="foto-area-temp-saida">
+            <input type="file" id="foto-temp-saida" accept="image/*" capture="environment">
+            <div class="foto-placeholder">
+              <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M6.5 8h.01M2 9l1-2h1.5l.5-1.5h5l.5 1.5H12l1 2v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9z"/><circle cx="7" cy="13" r="2"/></svg>
+              <span>Tirar foto</span>
+            </div>
+            <img class="foto-preview" id="preview-temp-saida" src="" alt="">
+          </div>
+          <div class="foto-status" id="status-temp-saida"></div>
+        </div>
+      </div>
+
       <div class="operador-info" id="d-operador">—</div>
       <div style="display:flex;gap:8px;margin-top:4px">
         <button class="btn btn-primary" id="btn-salvar-temp">✓ Salvar temperatura</button>
@@ -170,6 +188,9 @@
 
   </div>
 </div>
+
+<!-- Relatório PDF (apenas impressão) -->
+<div id="relatorio-pdf"></div>
 
 <script src="js/api.js"></script>
 <script src="js/resfriamento.js"></script>

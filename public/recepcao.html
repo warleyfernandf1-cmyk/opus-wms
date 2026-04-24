@@ -163,6 +163,49 @@
       <button type="button" class="ac-add-btn" id="btn-add-ac">＋ Adicionar Área / Controle</button>
       <div id="dist-status" class="dist-status"></div>
 
+      <!-- Fotos de entrada -->
+      <div style="margin-top:20px;">
+        <div style="font-weight:600;font-size:.85rem;margin-bottom:4px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">Registro Fotográfico — Entrada</div>
+        <div class="foto-grid">
+          <div class="foto-widget">
+            <label>Temperatura de Entrada</label>
+            <div class="foto-area" id="foto-area-temp-entrada">
+              <input type="file" id="foto-temp-entrada" accept="image/*" capture="environment">
+              <div class="foto-placeholder">
+                <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M6.5 8h.01M2 9l1-2h1.5l.5-1.5h5l.5 1.5H12l1 2v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9z"/><circle cx="7" cy="13" r="2"/></svg>
+                <span>Tirar foto</span>
+              </div>
+              <img class="foto-preview" id="preview-temp-entrada" src="" alt="">
+            </div>
+            <div class="foto-status" id="status-temp-entrada"></div>
+          </div>
+          <div class="foto-widget">
+            <label>Espelho do Pallet</label>
+            <div class="foto-area" id="foto-area-espelho">
+              <input type="file" id="foto-espelho" accept="image/*" capture="environment">
+              <div class="foto-placeholder">
+                <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M6.5 8h.01M2 9l1-2h1.5l.5-1.5h5l.5 1.5H12l1 2v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9z"/><circle cx="7" cy="13" r="2"/></svg>
+                <span>Tirar foto</span>
+              </div>
+              <img class="foto-preview" id="preview-espelho" src="" alt="">
+            </div>
+            <div class="foto-status" id="status-espelho"></div>
+          </div>
+          <div class="foto-widget">
+            <label>Foto do Pallet</label>
+            <div class="foto-area" id="foto-area-pallet-entrada">
+              <input type="file" id="foto-pallet-entrada" accept="image/*" capture="environment">
+              <div class="foto-placeholder">
+                <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M6.5 8h.01M2 9l1-2h1.5l.5-1.5h5l.5 1.5H12l1 2v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9z"/><circle cx="7" cy="13" r="2"/></svg>
+                <span>Tirar foto</span>
+              </div>
+              <img class="foto-preview" id="preview-pallet-entrada" src="" alt="">
+            </div>
+            <div class="foto-status" id="status-pallet-entrada"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="mt-4 flex items-center" style="gap:10px;flex-wrap:wrap;">
         <button class="btn btn-primary" id="btn-registrar">↓ Registrar Pallet</button>
         <span id="selected-import-info" class="text-muted">Nenhuma linha da planilha selecionada.</span>

@@ -13,6 +13,7 @@ let tunelAtivo = '01';
 let palletSelecionadoId = null;
 let dadosTuneis = {};
 let sessaoAtiva = null;
+let fotoSaidaUrl = null;
 
 /* ─── helpers ────────────────────────────────────────────────── */
 
@@ -90,7 +91,13 @@ function atualizarEncerrarBar() {
 
 async function renderSessaoBar() {
   const bar = document.getElementById('sessao-bar');
-  if (!sessaoAtiva) { bar.style.display = 'none'; return; }
+  const btnRel = document.getElementById('btn-relatorio-sessao');
+
+  if (!sessaoAtiva) {
+    bar.style.display = 'none';
+    btnRel.style.display = 'none';
+    return;
+  }
 
   let remessa = 1;
   try {
@@ -105,6 +112,8 @@ async function renderSessaoBar() {
   document.getElementById('sessao-info').textContent =
     `Criada em ${criada} · Pallets: ${palletsDoTunel().length}`;
   bar.style.display = 'flex';
+
+  btnRel.style.display = sessaoAtiva.status === 'finalizada' ? '' : 'none';
 }
 
 /* ─── seleção de túnel ───────────────────────────────────────── */
@@ -159,8 +168,50 @@ function abrirDetalhe(palletId, boca) {
 
 function fecharDetalhe(rerender = true) {
   palletSelecionadoId = null;
+  fotoSaidaUrl = null;
+  const preview = document.getElementById('preview-temp-saida');
+  const status  = document.getElementById('status-temp-saida');
+  if (preview) { preview.src = ''; preview.classList.remove('visible'); }
+  if (status)  { status.className = 'foto-status'; status.textContent = ''; }
+  const input = document.getElementById('foto-temp-saida');
+  if (input) input.value = '';
   document.getElementById('detalhe-panel').classList.remove('ativo');
   if (rerender) renderBocas();
+}
+
+/* ─── foto de saída ──────────────────────────────────────────── */
+
+async function uploadFotoSaida(file) {
+  const statusEl  = document.getElementById('status-temp-saida');
+  const previewEl = document.getElementById('preview-temp-saida');
+  statusEl.className = 'foto-status uploading';
+  statusEl.textContent = '⏳ Enviando…';
+  previewEl.src = URL.createObjectURL(file);
+  previewEl.classList.add('visible');
+
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('tipo', 'saida');
+    const token = localStorage.getItem('opus_token');
+    const resp = await fetch('/api/upload/foto', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || 'Erro no upload');
+    }
+    const data = await resp.json();
+    fotoSaidaUrl = data.url;
+    statusEl.className = 'foto-status ok';
+    statusEl.textContent = '✔ Foto enviada';
+  } catch (e) {
+    fotoSaidaUrl = null;
+    statusEl.className = 'foto-status erro';
+    statusEl.textContent = '✖ Falha: ' + e.message;
+  }
 }
 
 /* ─── salvar temperatura ─────────────────────────────────────── */
@@ -171,12 +222,15 @@ document.getElementById('btn-salvar-temp').addEventListener('click', async () =>
   if (isNaN(tempVal)) { showToast('Informe a temperatura de polpa.', 'error'); return; }
   const obs = document.getElementById('input-obs').value.trim();
 
+  const payload = {
+    temp_polpa: tempVal,
+    observacao: obs || null,
+    sessao_id: sessaoAtiva ? sessaoAtiva.id : null,
+  };
+  if (fotoSaidaUrl) payload.foto_temp_saida = fotoSaidaUrl;
+
   try {
-    await api.post(`/resfriamento/pallet/${palletSelecionadoId}/temp`, {
-      temp_polpa: tempVal,
-      observacao: obs || null,
-      sessao_id: sessaoAtiva ? sessaoAtiva.id : null,
-    });
+    await api.post(`/resfriamento/pallet/${palletSelecionadoId}/temp`, payload);
     Object.values(dadosTuneis[tunelAtivo] || {}).flat().forEach(p => {
       if (p.id === palletSelecionadoId) p.temp_saida = tempVal;
     });
@@ -192,17 +246,129 @@ document.getElementById('btn-salvar-temp').addEventListener('click', async () =>
 async function encerrarSessao() {
   if (!sessaoAtiva) return;
   try {
-    await api.post(`/resfriamento/sessao/${sessaoAtiva.id}/finalizar`, {});
+    const sessaoFinalizada = await api.post(`/resfriamento/sessao/${sessaoAtiva.id}/finalizar`, {});
     showToast('Sessão encerrada. Pallets aguardam vínculo a OA no módulo Armazenamento.', 'success');
-    sessaoAtiva = null;
+    sessaoAtiva = sessaoFinalizada || { ...sessaoAtiva, status: 'finalizada' };
     fecharDetalhe(false);
-    await init();
+    await renderSessaoBar();
+    atualizarEncerrarBar();
+    renderBocas();
   } catch (e) {
     showToast(e.message, 'error');
   }
 }
 
+/* ─── gerar relatório ────────────────────────────────────────── */
+
+function _fmt(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('pt-BR');
+}
+
+function _fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('pt-BR');
+}
+
+function _fotoBox(label, url) {
+  return `<div class="rel-foto-box">
+    <div class="foto-label">${label}</div>
+    ${url
+      ? `<img src="${url}" alt="${label}" loading="eager">`
+      : `<div class="sem-foto">Sem foto</div>`}
+  </div>`;
+}
+
+async function gerarRelatorio() {
+  if (!sessaoAtiva) return;
+  const sessaoId = sessaoAtiva.id;
+
+  try {
+    showToast('Gerando relatório…', 'success');
+    const data = await api.get(`/resfriamento/sessao/${sessaoId}/relatorio`);
+    const { sessao, pallets, estatisticas } = data;
+
+    const paginasHtml = pallets.map(p => `
+      <div class="rel-page">
+        <div class="rel-header">
+          <div>
+            <h1>Relatório de Resfriamento</h1>
+            <p>Túnel ${sessao.tunel} · Sessão ${sessaoId}</p>
+          </div>
+          <div class="rel-logo">OPUS WMS</div>
+        </div>
+
+        <div class="rel-pallet-header">
+          <div><strong>${p.id}</strong></div>
+          <div><span>${p.variedade || '—'}</span></div>
+          <div><span>${p.classificacao || '—'}</span></div>
+          <div><span>${p.qtd_caixas} cx</span></div>
+        </div>
+
+        <div class="rel-operators">
+          <div class="rel-op-box">
+            <div class="label">Operador — Entrada</div>
+            <div class="value">${p.operador_recepcao || '—'}</div>
+            <div class="label" style="margin-top:2px">${_fmt(p.ts_recepcao)}</div>
+          </div>
+          <div class="rel-op-box">
+            <div class="label">Operador — Saída</div>
+            <div class="value">${p.operador_saida || '—'}</div>
+            <div class="label" style="margin-top:2px">${_fmt(p.ts_saida)}</div>
+          </div>
+        </div>
+
+        <div class="rel-metrics">
+          <div class="rel-metric">
+            <div class="label">Temp. Entrada</div>
+            <div class="value">${p.temp_entrada != null ? p.temp_entrada + '°C' : '—'}</div>
+          </div>
+          <div class="rel-metric">
+            <div class="label">Boca</div>
+            <div class="value">${p.boca || '—'}</div>
+          </div>
+          <div class="rel-metric">
+            <div class="label">Temp. Saída (polpa)</div>
+            <div class="value">${p.temp_saida != null ? p.temp_saida + '°C' : '—'}</div>
+          </div>
+        </div>
+
+        <div class="rel-fotos">
+          ${_fotoBox('Temp. Entrada', p.foto_temp_entrada)}
+          ${_fotoBox('Espelho Pallet', p.foto_espelho)}
+          ${_fotoBox('Foto Pallet', p.foto_pallet_entrada)}
+          ${_fotoBox('Temp. Saída', p.foto_temp_saida)}
+        </div>
+
+        <div class="rel-footer">
+          <span>Data embalamento: ${_fmtDate(p.data_embalamento)}</span>
+          <span>Tempo total: ${estatisticas.tempo_operacao || '—'} · Média entrada: ${estatisticas.temp_media_entrada != null ? estatisticas.temp_media_entrada + '°C' : '—'} · Média saída: ${estatisticas.temp_media_saida != null ? estatisticas.temp_media_saida + '°C' : '—'}</span>
+          <span>Impresso em ${new Date().toLocaleString('pt-BR')}</span>
+        </div>
+      </div>
+    `).join('');
+
+    document.getElementById('relatorio-pdf').innerHTML = paginasHtml;
+
+    window.onafterprint = async () => {
+      window.onafterprint = null;
+      try {
+        await api.post(`/resfriamento/sessao/${sessaoId}/limpar-fotos`, {});
+      } catch (_) {}
+    };
+
+    window.print();
+  } catch (e) {
+    showToast('Erro ao gerar relatório: ' + e.message, 'error');
+  }
+}
+
 /* ─── init ───────────────────────────────────────────────────── */
+
+document.getElementById('foto-temp-saida').addEventListener('change', async e => {
+  const file = e.target.files?.[0];
+  if (file) await uploadFotoSaida(file);
+});
 
 async function init() {
   try {

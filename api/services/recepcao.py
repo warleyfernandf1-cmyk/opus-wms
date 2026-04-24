@@ -57,7 +57,7 @@ def registrar(body: PalletCreate, user_id: str | None = None) -> dict:
 
     areas_list = [item.model_dump() for item in body.areas_controles]
     first = body.areas_controles[0]
-    body_dict = body.model_dump(exclude={"areas_controles"})
+    body_dict = body.model_dump(exclude={"areas_controles", "foto_temp_entrada", "foto_espelho", "foto_pallet_entrada"})
 
     row = {
         "id": pallet_id,
@@ -68,6 +68,10 @@ def registrar(body: PalletCreate, user_id: str | None = None) -> dict:
         "areas_controles": json.dumps(areas_list),
         "fase": "resfriamento",
         "is_adicao": is_adicao,
+        "sessao_id": sessao_id,
+        "foto_temp_entrada":   body.foto_temp_entrada,
+        "foto_espelho":        body.foto_espelho,
+        "foto_pallet_entrada": body.foto_pallet_entrada,
         "created_at": now,
         "updated_at": now,
     }

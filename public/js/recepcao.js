@@ -483,6 +483,69 @@ async function handlePlanilha(file) {
 }
 
 // ─────────────────────────────────────────────────────────
+//  REGISTRO FOTOGRÁFICO — ENTRADA
+// ─────────────────────────────────────────────────────────
+const fotoUrls = { temp_entrada: null, espelho: null, pallet_entrada: null };
+
+async function uploadFoto(file, tipo, key, previewId, statusId) {
+  const statusEl = document.getElementById(statusId);
+  const previewEl = document.getElementById(previewId);
+  statusEl.className = 'foto-status uploading';
+  statusEl.textContent = '⏳ Enviando…';
+
+  const localUrl = URL.createObjectURL(file);
+  previewEl.src = localUrl;
+  previewEl.classList.add('visible');
+
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('tipo', tipo);
+    const token = localStorage.getItem('opus_token');
+    const resp = await fetch('/api/upload/foto', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || 'Erro no upload');
+    }
+    const data = await resp.json();
+    fotoUrls[key] = data.url;
+    statusEl.className = 'foto-status ok';
+    statusEl.textContent = '✔ Foto enviada';
+  } catch (e) {
+    fotoUrls[key] = null;
+    statusEl.className = 'foto-status erro';
+    statusEl.textContent = '✖ Falha: ' + e.message;
+  }
+}
+
+function bindFotoInput(inputId, tipo, key, previewId, statusId) {
+  document.getElementById(inputId).addEventListener('change', async e => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadFoto(file, tipo, key, previewId, statusId);
+  });
+}
+
+function clearFotos() {
+  fotoUrls.temp_entrada = null;
+  fotoUrls.espelho = null;
+  fotoUrls.pallet_entrada = null;
+  ['temp-entrada', 'espelho', 'pallet-entrada'].forEach(k => {
+    const preview = document.getElementById(`preview-${k}`);
+    const status  = document.getElementById(`status-${k}`);
+    if (preview) { preview.src = ''; preview.classList.remove('visible'); }
+    if (status)  { status.className = 'foto-status'; status.textContent = ''; }
+  });
+  document.getElementById('foto-temp-entrada').value = '';
+  document.getElementById('foto-espelho').value = '';
+  document.getElementById('foto-pallet-entrada').value = '';
+}
+
+// ─────────────────────────────────────────────────────────
 //  LISTAGEM DE PALLETS
 // ─────────────────────────────────────────────────────────
 async function loadPallets() {
@@ -554,6 +617,10 @@ document.getElementById('btn-registrar').addEventListener('click', async () => {
 
   body.areas_controles = areasControles;
 
+  if (fotoUrls.temp_entrada)    body.foto_temp_entrada   = fotoUrls.temp_entrada;
+  if (fotoUrls.espelho)         body.foto_espelho         = fotoUrls.espelho;
+  if (fotoUrls.pallet_entrada)  body.foto_pallet_entrada  = fotoUrls.pallet_entrada;
+
   try {
     const created = await api.post('/recepcao/', body);
     showToast(`Pallet ${created.id} registrado!${created.is_adicao ? ' (ADIÇÃO)' : ''}`, 'success');
@@ -565,6 +632,7 @@ document.getElementById('btn-registrar').addEventListener('click', async () => {
 
     form.reset();
     clearAreasControles();
+    clearFotos();
     selectedImportedRowIndex = null;
     updateSelectedInfo();
     loadPallets();
@@ -786,6 +854,10 @@ async function salvarEdicao() {
 // ─────────────────────────────────────────────────────────
 //  INIT
 // ─────────────────────────────────────────────────────────
+bindFotoInput('foto-temp-entrada',   'recepcao', 'temp_entrada',    'preview-temp-entrada',   'status-temp-entrada');
+bindFotoInput('foto-espelho',        'recepcao', 'espelho',         'preview-espelho',         'status-espelho');
+bindFotoInput('foto-pallet-entrada', 'recepcao', 'pallet_entrada',  'preview-pallet-entrada',  'status-pallet-entrada');
+
 renderImportPreview();
 addAreaControle();   // inicia com uma linha vazia
 loadPallets();

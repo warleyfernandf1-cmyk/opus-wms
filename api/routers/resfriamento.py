@@ -63,6 +63,7 @@ def salvar_temp_pallet(
         temp_polpa=body.temp_polpa,
         observacao=body.observacao,
         sessao_id=body.sessao_id,
+        foto_temp_saida=body.foto_temp_saida,
         user_id=user["id"],
     )
 
@@ -116,6 +117,22 @@ def finalizar_sessao(
     if not sessao:
         raise HTTPException(404, "Sessão não encontrada")
     return sessao
+
+
+@router.get("/sessao/{sessao_id}/relatorio")
+def relatorio_sessao(
+    sessao_id: str,
+    user: dict = Depends(_OPERADOR_ACIMA),
+):
+    return svc.relatorio_sessao(sessao_id)
+
+
+@router.post("/sessao/{sessao_id}/limpar-fotos")
+def limpar_fotos_sessao(
+    sessao_id: str,
+    user: dict = Depends(_OPERADOR_ACIMA),
+):
+    return svc.limpar_fotos_sessao(sessao_id)
 
 
 # ── Admin ─────────────────────────────────────────────────────

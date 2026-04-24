@@ -36,6 +36,9 @@ class PalletCreate(BaseModel):
     temp_entrada: float
     tunel: Literal["01", "02"]
     boca: int = Field(..., ge=1, le=12)
+    foto_temp_entrada:   Optional[str] = None
+    foto_espelho:        Optional[str] = None
+    foto_pallet_entrada: Optional[str] = None
 
     @field_validator('variedade')
     @classmethod
@@ -86,6 +89,11 @@ class PalletOut(BaseModel):
     rua: Optional[int] = None
     posicao: Optional[int] = None
     is_adicao: bool = False
+    sessao_id: Optional[str] = None
+    foto_temp_entrada:   Optional[str] = None
+    foto_espelho:        Optional[str] = None
+    foto_pallet_entrada: Optional[str] = None
+    foto_temp_saida:     Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -137,6 +145,7 @@ class SalvarTempPalletIn(BaseModel):
     temp_polpa: float
     observacao: Optional[str] = None
     sessao_id: Optional[str] = None
+    foto_temp_saida: Optional[str] = None
 
 # ---------------------------------------------------------------------------
 # OA — Destino por pallet (NOVO)

@@ -8,7 +8,7 @@ load_dotenv()
 from api.routers import (
     recepcao, resfriamento, armazenamento, remontes,
     picking, expedicao, inventario, dashboard,
-    relatorios, camaras, tuneis, historico, auth,
+    relatorios, camaras, tuneis, historico, auth, upload,
 )
 from api.auth.deps import get_current_user
 
@@ -24,7 +24,7 @@ app.add_middleware(
     allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 # Auth — sem proteção (login é público)
@@ -44,6 +44,7 @@ app.include_router(relatorios.router,   prefix="/api/relatorios",   tags=["Relat
 app.include_router(camaras.router,      prefix="/api/camaras",      tags=["Câmaras"],       dependencies=_auth)
 app.include_router(tuneis.router,       prefix="/api/tuneis",       tags=["Túneis"],        dependencies=_auth)
 app.include_router(historico.router,    prefix="/api/historico",    tags=["Histórico"],     dependencies=_auth)
+app.include_router(upload.router,       prefix="/api/upload",       tags=["Upload"],         dependencies=_auth)
 
 
 @app.get("/api/health")

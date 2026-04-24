@@ -447,3 +447,218 @@ tr:hover td { background: var(--surface2); }
   display: none;
 }
 
+/* ── Foto Widget ── */
+.foto-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.foto-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.foto-widget label {
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+.foto-area {
+  position: relative;
+  aspect-ratio: 4/3;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .2s;
+  background: var(--surface2);
+}
+
+.foto-area:hover { border-color: var(--accent); }
+
+.foto-area input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.foto-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: .75rem;
+  pointer-events: none;
+}
+
+.foto-placeholder svg { opacity: .4; }
+
+.foto-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+
+.foto-preview.visible { display: block; }
+
+.foto-status {
+  font-size: .72rem;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.foto-status.uploading { color: var(--warning); }
+.foto-status.ok        { color: var(--success); }
+.foto-status.erro      { color: var(--danger); }
+
+/* ── Relatório PDF (print) ── */
+#relatorio-pdf { display: none; }
+
+@media print {
+  body > *:not(#relatorio-pdf) { display: none !important; }
+  #relatorio-pdf {
+    display: block;
+    font-family: 'Inter', Arial, sans-serif;
+    color: #0f172a;
+    background: #fff;
+    padding: 0;
+    margin: 0;
+  }
+}
+
+.rel-page {
+  width: 210mm;
+  padding: 12mm 14mm;
+  page-break-after: always;
+}
+
+.rel-page:last-child { page-break-after: auto; }
+
+.rel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #0f172a;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+}
+
+.rel-header h1 { font-size: 1rem; font-weight: 700; margin: 0; }
+.rel-header p  { font-size: .72rem; color: #64748b; margin: 2px 0 0; }
+.rel-header .rel-logo { font-size: 1.3rem; font-weight: 800; color: #6366f1; }
+
+.rel-pallet-header {
+  background: #f1f5f9;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.rel-pallet-header strong { font-size: .8rem; }
+.rel-pallet-header span   { font-size: .75rem; color: #475569; }
+
+.rel-operators {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.rel-op-box {
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: .72rem;
+}
+
+.rel-op-box .label { color: #64748b; margin-bottom: 2px; }
+.rel-op-box .value { font-weight: 600; }
+
+.rel-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.rel-metric {
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.rel-metric .label { font-size: .65rem; color: #64748b; text-transform: uppercase; }
+.rel-metric .value { font-size: 1.1rem; font-weight: 700; color: #0f172a; }
+
+.rel-fotos {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.rel-foto-box {
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.rel-foto-box .foto-label {
+  background: #f8fafc;
+  font-size: .65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #475569;
+  padding: 3px 6px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.rel-foto-box img {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  display: block;
+}
+
+.rel-foto-box .sem-foto {
+  width: 100%;
+  aspect-ratio: 4/3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .7rem;
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
+.rel-footer {
+  margin-top: 10px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 6px;
+  display: flex;
+  justify-content: space-between;
+  font-size: .68rem;
+  color: #64748b;
+}
+
