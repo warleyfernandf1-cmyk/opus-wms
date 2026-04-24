@@ -51,7 +51,7 @@ const api = {
   put:    (path, body)  => request('PUT',    path, body),
 };
 
-// ── Sidebar: usuário logado + controle de visibilidade admin ─
+// ── Sidebar + Header: usuário logado + relógio ───────────────
 document.addEventListener('DOMContentLoaded', () => {
   // Link ativo na nav
   const page = location.pathname.split('/').pop() || 'index.html';
@@ -62,13 +62,32 @@ document.addEventListener('DOMContentLoaded', () => {
   // Dados do usuário (decodificados do JWT — só para exibição)
   const nome = sessionStorage.getItem('user_nome') || '';
   const role = sessionStorage.getItem('user_role') || '';
+  const labels = { admin: 'Admin', planejador: 'Planejador', operador: 'Operador' };
+  const roleLabel = labels[role] || role;
 
+  // Sidebar footer
   const elNome = document.getElementById('sidebar-nome');
   const elRole = document.getElementById('sidebar-role');
   if (elNome) elNome.textContent = nome || '—';
-  if (elRole) {
-    const labels = { admin: 'Admin', planejador: 'Planejador', operador: 'Operador' };
-    elRole.textContent = labels[role] || role;
+  if (elRole) elRole.textContent = roleLabel;
+
+  // Header: nome + role
+  const elHeaderNome = document.getElementById('header-nome');
+  const elHeaderRole = document.getElementById('header-role');
+  if (elHeaderNome) elHeaderNome.textContent = nome || '—';
+  if (elHeaderRole) elHeaderRole.textContent = roleLabel;
+
+  // Header: relógio
+  const elDatetime = document.getElementById('header-datetime');
+  if (elDatetime) {
+    const tick = () => {
+      elDatetime.textContent = new Date().toLocaleString('pt-BR', {
+        weekday: 'short', day: '2-digit', month: '2-digit',
+        year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit',
+      });
+    };
+    tick();
+    setInterval(tick, 1000);
   }
 
   // Exibe link de Usuários e label Admin apenas para admin

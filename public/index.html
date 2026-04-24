@@ -40,8 +40,15 @@
 <div id="main">
   <header>
     <h1>Dashboard</h1>
-    <span class="badge">Live</span>
-  </header>
+  <div class="header-right">
+    <span class="header-datetime" id="header-datetime"></span>
+    <div class="header-user-info">
+      <span class="header-nome" id="header-nome">—</span>
+      <span class="header-role" id="header-role"></span>
+    </div>
+    <button class="btn-header-logout" onclick="logout()">&#x21AA; Sair</button>
+  </div>
+</header>
   <div class="content">
     <div class="kpi-grid" id="kpi-grid">
       <div class="kpi"><div class="label">Carregando...</div></div>

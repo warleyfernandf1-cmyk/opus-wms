@@ -35,7 +35,16 @@
   </div>
 </aside>
 <div id="main">
-  <header><h1>Histórico</h1><span class="badge">Audit Trail</span></header>
+  <header><h1>Histórico</h1>
+  <div class="header-right">
+    <span class="header-datetime" id="header-datetime"></span>
+    <div class="header-user-info">
+      <span class="header-nome" id="header-nome">—</span>
+      <span class="header-role" id="header-role"></span>
+    </div>
+    <button class="btn-header-logout" onclick="logout()">&#x21AA; Sair</button>
+  </div>
+</header>
   <div class="content">
     <div class="toolbar">
       <input id="filtro-pallet" placeholder="Filtrar por Pallet ID..." style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 12px;font-size:.875rem;outline:none;width:220px">

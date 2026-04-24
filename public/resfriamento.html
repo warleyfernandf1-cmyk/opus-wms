@@ -226,9 +226,16 @@
 <div id="main">
   <header>
     <h1>Resfriamento</h1>
-    <span class="badge">Confirmação de saída do túnel</span>
-    <button class="btn btn-ghost btn-sm" onclick="init()" style="margin-left:auto">↻ Atualizar</button>
-  </header>
+  <div class="header-right">
+    <button class="btn btn-ghost btn-sm" onclick="init()">↻ Atualizar</button>
+    <span class="header-datetime" id="header-datetime"></span>
+    <div class="header-user-info">
+      <span class="header-nome" id="header-nome">—</span>
+      <span class="header-role" id="header-role"></span>
+    </div>
+    <button class="btn-header-logout" onclick="logout()">&#x21AA; Sair</button>
+  </div>
+</header>
   <div class="content">
 
     <!-- Seletor de túnel -->

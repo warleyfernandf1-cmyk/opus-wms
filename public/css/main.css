@@ -92,7 +92,61 @@ header {
 }
 
 header h1 { font-size: 1rem; font-weight: 600; }
-header .badge { font-size: .7rem; background: var(--accent); color: #fff; border-radius: 4px; padding: 2px 8px; }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-datetime {
+  font-size: .75rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.header-user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.header-nome {
+  font-size: .8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.header-role {
+  font-size: .65rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(99,102,241,.2);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.btn-header-logout {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: .8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all .15s;
+  white-space: nowrap;
+}
+
+.btn-header-logout:hover {
+  background: rgba(239,68,68,.1);
+  border-color: var(--danger);
+  color: var(--danger);
+}
 
 .content { padding: 24px; flex: 1; }
 
