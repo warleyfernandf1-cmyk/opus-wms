@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from api.auth.deps import get_current_user, requer_role
-from api.models.schemas import PalletCreate, PalletOut
+from api.models.schemas import PalletCreate, PalletOut, PalletUpdate
 from api.services import recepcao as svc
 
 router = APIRouter()
@@ -25,6 +25,15 @@ def detalhe_pallet(pallet_id: str):
     if not pallet:
         raise HTTPException(404, "Pallet não encontrado")
     return pallet
+
+
+@router.put("/{pallet_id}", response_model=PalletOut)
+def editar_pallet(
+    pallet_id: str,
+    body: PalletUpdate,
+    user: dict = Depends(requer_role("admin", "planejador")),
+):
+    return svc.atualizar(pallet_id, body, user_id=user["id"])
 
 
 @router.delete("/{pallet_id}/rollback", status_code=200)

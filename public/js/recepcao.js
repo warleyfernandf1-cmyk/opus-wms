@@ -495,13 +495,18 @@ async function loadPallets() {
     tbody.innerHTML = pallets.map(p => `
       <tr>
         <td><strong>${escapeHtml(p.id)}</strong>${p.is_adicao ? ' <span class="badge-status badge-warning" style="font-size:.65rem">ADIÇÃO</span>' : ''}</td>
-        <td>${escapeHtml(p.variedade)}</td>
         <td>${p.qtd_caixas}</td>
-        <td>${escapeHtml(p.produtor)}</td>
+        <td>${escapeHtml(p.variedade)}</td>
+        <td>${escapeHtml(p.classificacao)}</td>
         <td>T${escapeHtml(p.tunel)}</td>
         <td>${p.boca}</td>
         <td>${p.temp_entrada}°C</td>
-        <td><button class="btn btn-danger btn-sm" onclick="rollback('${encodeURIComponent(p.id)}')">Rollback</button></td>
+        <td>
+          <div class="flex gap-2">
+            <button class="btn btn-ghost btn-sm" title="Editar" onclick="abrirEditar('${encodeURIComponent(p.id)}')">✏️</button>
+            <button class="btn btn-danger btn-sm" title="Excluir (Rollback)" onclick="rollback('${encodeURIComponent(p.id)}')">🗑️</button>
+          </div>
+        </td>
       </tr>`).join('');
   } catch (e) {
     showToast('Erro ao carregar pallets: ' + e.message, 'error');
@@ -611,6 +616,172 @@ document.getElementById('tbody-import-preview').addEventListener('click', event 
   renderImportPreview();
   showToast(`Linha ${rowIndex + 1} aplicada ao formulário para conferência e entrada.`, 'success');
 });
+
+// ─────────────────────────────────────────────────────────
+//  EDIÇÃO DE PALLET
+// ─────────────────────────────────────────────────────────
+let editAcCounter = 0;
+
+function addEditAreaControle(areaVal = '', controleVal = '', qtdVal = '') {
+  const list = document.getElementById('edit-ac-list');
+  const id = ++editAcCounter;
+  const row = document.createElement('div');
+  row.className = 'ac-row';
+  row.dataset.id = id;
+  row.innerHTML = `
+    <div class="field">
+      <label>Área</label>
+      <input type="text" data-field="area" placeholder="Ex: T-01" value="${escapeHtml(areaVal)}" required oninput="updateEditDistStatus()">
+    </div>
+    <div class="field">
+      <label>Controle</label>
+      <input type="text" data-field="controle" placeholder="Ex: CTRL-01" value="${escapeHtml(controleVal)}" required>
+    </div>
+    <div class="field">
+      <label>Qtde cx p/controle</label>
+      <input type="number" data-field="qtd_caixas" placeholder="0" min="1" value="${qtdVal}" required oninput="updateEditDistStatus()">
+    </div>
+    <div class="field ac-remove-wrap">
+      <label>&nbsp;</label>
+      <button type="button" class="ac-remove" title="Remover">✕</button>
+    </div>
+  `;
+  row.querySelector('.ac-remove').addEventListener('click', () => {
+    row.remove();
+    _updateEditRemoveButtons();
+    updateEditDistStatus();
+  });
+  list.appendChild(row);
+  _updateEditRemoveButtons();
+  updateEditDistStatus();
+}
+
+function _updateEditRemoveButtons() {
+  const rows = document.querySelectorAll('#edit-ac-list .ac-row');
+  rows.forEach(row => {
+    const wrap = row.querySelector('.ac-remove-wrap');
+    if (wrap) wrap.style.display = rows.length === 1 ? 'none' : '';
+  });
+}
+
+function updateEditDistStatus() {
+  const statusEl = document.getElementById('edit-dist-status');
+  const total = Number(document.getElementById('edit-qtd_caixas')?.value) || 0;
+  const dist  = Array.from(document.querySelectorAll('#edit-ac-list .ac-row'))
+    .reduce((s, r) => s + (Number(r.querySelector('[data-field="qtd_caixas"]').value) || 0), 0);
+  const rows = document.querySelectorAll('#edit-ac-list .ac-row').length;
+  if (!total || !rows) { statusEl.className = 'dist-status'; statusEl.textContent = ''; return; }
+  if (dist === total) {
+    statusEl.className = 'dist-status ok';
+    statusEl.textContent = `✔ Distribuição correta: ${dist} / ${total} caixas alocadas.`;
+  } else if (dist > total) {
+    statusEl.className = 'dist-status warn';
+    statusEl.textContent = `✖ Excesso de ${dist - total} caixas — distribua apenas ${total}.`;
+  } else {
+    statusEl.className = 'dist-status info';
+    statusEl.textContent = `⚠ Faltam ${total - dist} caixas para completar a distribuição.`;
+  }
+}
+
+function _collectEditAreasControles() {
+  return Array.from(document.querySelectorAll('#edit-ac-list .ac-row')).map(row => ({
+    area:       row.querySelector('[data-field="area"]').value.trim(),
+    controle:   row.querySelector('[data-field="controle"]').value.trim(),
+    qtd_caixas: Number(row.querySelector('[data-field="qtd_caixas"]').value),
+  }));
+}
+
+function _setEditSelect(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const match = Array.from(el.options).find(o => o.value === String(value))
+    || Array.from(el.options).find(o => o.value.toUpperCase() === String(value).toUpperCase());
+  if (match) el.value = match.value;
+}
+
+async function abrirEditar(encodedId) {
+  const id = decodeURIComponent(encodedId);
+  try {
+    const p = await api.get(`/recepcao/${encodeURIComponent(id)}`);
+    document.getElementById('edit-pallet-id').value       = p.id;
+    document.getElementById('edit-pallet-id-label').textContent = p.id;
+    document.getElementById('edit-nro_pallet').value      = p.nro_pallet   || '';
+    document.getElementById('edit-qtd_caixas').value      = p.qtd_caixas   || '';
+    document.getElementById('edit-data_embalamento').value = p.data_embalamento || '';
+    document.getElementById('edit-safra').value           = p.safra        || '';
+    document.getElementById('edit-rotulo').value          = p.rotulo       || '';
+    document.getElementById('edit-produtor').value        = p.produtor     || '';
+    document.getElementById('edit-temp_entrada').value    = p.temp_entrada || '';
+    _setEditSelect('edit-variedade',    p.variedade);
+    _setEditSelect('edit-classificacao', p.classificacao);
+    _setEditSelect('edit-embalagem',    p.embalagem);
+    _setEditSelect('edit-caixa',        p.caixa);
+    _setEditSelect('edit-peso',         p.peso);
+    _setEditSelect('edit-mercado',      p.mercado);
+    _setEditSelect('edit-tunel',        p.tunel);
+    _setEditSelect('edit-boca',         p.boca);
+
+    document.getElementById('edit-ac-list').innerHTML = '';
+    editAcCounter = 0;
+    const areas = p.areas_controles?.length
+      ? p.areas_controles
+      : [{ area: p.area || '', controle: p.controle || '', qtd_caixas: p.qtd_caixas }];
+    areas.forEach(ac => addEditAreaControle(ac.area, ac.controle, ac.qtd_caixas));
+
+    document.getElementById('modal-editar-pallet').style.display = 'flex';
+  } catch (e) {
+    showToast('Erro ao carregar pallet: ' + e.message, 'error');
+  }
+}
+
+function fecharModalEditar() {
+  document.getElementById('modal-editar-pallet').style.display = 'none';
+}
+
+async function salvarEdicao() {
+  const id          = document.getElementById('edit-pallet-id').value;
+  const qtdCaixas   = Number(document.getElementById('edit-qtd_caixas').value);
+  const areasControles = _collectEditAreasControles();
+
+  const totalDist = areasControles.reduce((s, ac) => s + ac.qtd_caixas, 0);
+  if (totalDist !== qtdCaixas) {
+    showToast(`A soma das caixas por área (${totalDist}) deve ser igual ao total (${qtdCaixas}).`, 'error');
+    return;
+  }
+  const hasEmpty = areasControles.some(ac => !ac.area || !ac.controle || !ac.qtd_caixas);
+  if (hasEmpty) {
+    showToast('Preencha todos os campos de Área, Controle e Qtd Caixas.', 'error');
+    return;
+  }
+
+  const body = {
+    nro_pallet:       document.getElementById('edit-nro_pallet').value.trim(),
+    qtd_caixas:       qtdCaixas,
+    data_embalamento: document.getElementById('edit-data_embalamento').value,
+    safra:            document.getElementById('edit-safra').value.trim(),
+    variedade:        document.getElementById('edit-variedade').value,
+    classificacao:    document.getElementById('edit-classificacao').value,
+    embalagem:        document.getElementById('edit-embalagem').value,
+    rotulo:           document.getElementById('edit-rotulo').value.trim(),
+    produtor:         document.getElementById('edit-produtor').value.trim(),
+    caixa:            document.getElementById('edit-caixa').value,
+    peso:             Number(document.getElementById('edit-peso').value),
+    mercado:          document.getElementById('edit-mercado').value,
+    temp_entrada:     Number(document.getElementById('edit-temp_entrada').value),
+    tunel:            document.getElementById('edit-tunel').value,
+    boca:             Number(document.getElementById('edit-boca').value),
+    areas_controles:  areasControles,
+  };
+
+  try {
+    await api.put(`/recepcao/${encodeURIComponent(id)}`, body);
+    showToast(`Pallet ${id} atualizado com sucesso.`, 'success');
+    fecharModalEditar();
+    loadPallets();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
 
 // ─────────────────────────────────────────────────────────
 //  INIT

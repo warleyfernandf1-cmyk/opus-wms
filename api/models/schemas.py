@@ -89,6 +89,34 @@ class PalletOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+class PalletUpdate(BaseModel):
+    nro_pallet:       Optional[str]   = None
+    qtd_caixas:       Optional[int]   = None
+    data_embalamento: Optional[date]  = None
+    variedade:        Optional[str]   = None
+    classificacao:    Optional[str]   = None
+    safra:            Optional[str]   = None
+    embalagem:        Optional[str]   = None
+    rotulo:           Optional[str]   = None
+    produtor:         Optional[str]   = None
+    caixa:            Optional[str]   = None
+    peso:             Optional[float] = None
+    areas_controles:  Optional[list[AreaControleItem]] = None
+    mercado:          Optional[str]   = None
+    temp_entrada:     Optional[float] = None
+    tunel:            Optional[Literal["01", "02"]] = None
+    boca:             Optional[int]   = Field(None, ge=1, le=12)
+
+    @model_validator(mode='after')
+    def validar_areas(self) -> 'PalletUpdate':
+        if self.areas_controles is not None and self.qtd_caixas is not None:
+            total = sum(item.qtd_caixas for item in self.areas_controles)
+            if total != self.qtd_caixas:
+                raise ValueError(
+                    f"Soma das caixas por área ({total}) deve ser igual ao total ({self.qtd_caixas})."
+                )
+        return self
+
 # ---------------------------------------------------------------------------
 # Resfriamento
 # ---------------------------------------------------------------------------

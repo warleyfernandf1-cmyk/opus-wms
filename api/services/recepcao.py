@@ -13,7 +13,7 @@ import json
 from datetime import datetime
 from fastapi import HTTPException
 from api.db.client import get_db
-from api.models.schemas import PalletCreate
+from api.models.schemas import PalletCreate, PalletUpdate
 
 
 def _gerar_id(nro_pallet: str, db) -> str:
@@ -118,6 +118,40 @@ def buscar(pallet_id: str) -> dict | None:
     if row.get("areas_controles") and isinstance(row["areas_controles"], str):
         row["areas_controles"] = json.loads(row["areas_controles"])
     return row
+
+
+def atualizar(pallet_id: str, body: PalletUpdate, user_id: str | None = None) -> dict:
+    db = get_db()
+    rows = db.table("pallets").select("*").eq("id", pallet_id).execute().data
+    if not rows:
+        raise HTTPException(404, "Pallet não encontrado")
+    pallet = rows[0]
+
+    update_data = body.model_dump(exclude_none=True)
+
+    if "areas_controles" in update_data:
+        areas_list = [item.model_dump() for item in body.areas_controles]
+        update_data["areas_controles"] = json.dumps(areas_list)
+        update_data["area"]    = body.areas_controles[0].area
+        update_data["controle"] = body.areas_controles[0].controle
+
+    if "data_embalamento" in update_data:
+        update_data["data_embalamento"] = str(body.data_embalamento)
+
+    update_data["updated_at"] = datetime.utcnow().isoformat()
+    db.table("pallets").update(update_data).eq("id", pallet_id).execute()
+
+    db.table("historico").insert({
+        "pallet_id":    pallet_id,
+        "acao":         "edicao_recepcao",
+        "fase_anterior": pallet["fase"],
+        "fase_nova":    pallet["fase"],
+        "dados":        {"campos_atualizados": list(update_data.keys())},
+        "usuario":      user_id,
+        "created_at":   datetime.utcnow().isoformat(),
+    }).execute()
+
+    return buscar(pallet_id)
 
 
 def rollback(pallet_id: str, user_id: str | None = None) -> dict:
