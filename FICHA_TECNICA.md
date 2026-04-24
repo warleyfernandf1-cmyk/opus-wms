@@ -174,12 +174,15 @@ Define todos os **Pydantic models** que descrevem o formato de entrada e saída 
 
 | Schema | Direção | Uso |
 |---|---|---|
-| `PalletCreate` | Entrada | Body do POST /recepcao |
-| `PalletOut` | Saída | Resposta com pallet completo |
-| `SessaoCreate` | Entrada | Iniciar sessão de resfriamento |
-| `SessaoFinalizar` | Entrada | Temperatura de saída |
-| `SessaoOut` | Saída | Dados da sessão |
-| `AlocarPalletIn` | Entrada | Alocar pallet em posição de câmara |
+| `AreaControleItem` | Interno | Área + controle + qtd_caixas (rastreabilidade proporcional) |
+| `PalletCreate` | Entrada | Body do POST /recepcao — inclui `areas_controles` validada |
+| `PalletOut` | Saída | Resposta com pallet completo + `areas_controles` JSONB |
+| `SessaoCreate` | Entrada | Manter compatibilidade (sessão agora é criada automaticamente) |
+| `SessaoOut` | Saída | Dados da sessão de resfriamento |
+| `SalvarTempPalletIn` | Entrada | `temp_polpa` + observacao + sessao_id para registrar temperatura individual |
+| `DestinoAlocarItem` | Entrada | Destino por pallet dentro de uma OA (pallet_id + câmara + rua + posição) |
+| `CriarOAIn` | Entrada | Criar OA: lista de pallet_ids + sessao_id + destinos opcionais |
+| `AlocarPalletIn` | Entrada | Alocar pallet diretamente em posição de câmara (módulo armazenamento) |
 | `PosicaoOut` | Saída | Estado de uma posição de câmara |
 | `RemontComplementacao` | Entrada | IDs do pallet original + adição |
 | `RemontJuncao` | Entrada | IDs dos dois pallets a fundir |
@@ -201,19 +204,27 @@ Os routers **não contêm lógica de negócio**. Responsabilidade única: recebe
 ### `api/routers/recepcao.py`
 | Método | Endpoint | Ação |
 |---|---|---|
-| POST | `/api/recepcao/` | Registra novo pallet (gera ID único) |
-| GET | `/api/recepcao/` | Lista todos os pallets em fase `recepcao` |
+| POST | `/api/recepcao/` | Registra novo pallet — entra direto em `resfriamento` |
+| GET | `/api/recepcao/` | Lista pallets em `recepcao` ou `resfriamento` |
 | GET | `/api/recepcao/{id}` | Retorna um pallet específico |
-| DELETE | `/api/recepcao/{id}/rollback` | **Única forma de excluir** um pallet |
+| DELETE | `/api/recepcao/{id}/rollback` | Exclui pallet (fase `recepcao` **ou** `resfriamento`) |
 
 ### `api/routers/resfriamento.py`
 | Método | Endpoint | Ação |
 |---|---|---|
-| GET | `/api/resfriamento/tuneis` | Estado atual dos dois túneis |
-| POST | `/api/resfriamento/sessao` | Inicia sessão + move pallets recepcao→resfriamento |
-| POST | `/api/resfriamento/sessao/{id}/finalizar` | Finaliza sessão, move para armazenamento, gera OA |
-| GET | `/api/resfriamento/sessao/{id}/oa` | Retorna/gera a OA da sessão |
-| POST | `/api/resfriamento/{id}/rollback` | Volta pallet resfriamento→recepcao |
+| GET | `/api/resfriamento/tuneis` | Estado dos dois túneis (pallets em resfriamento) |
+| GET | `/api/resfriamento/sessoes` | Lista sessões (filtráveis por túnel e status) |
+| GET | `/api/resfriamento/pallets-resfriamento` | Pallets em resfriamento sem OA vinculada |
+| GET | `/api/resfriamento/pallets-aguardando-oa` | Pallets com sessão encerrada, ainda sem OA |
+| GET | `/api/resfriamento/oas` | Lista OAs com pallets detalhados |
+| GET | `/api/resfriamento/posicoes-disponiveis` | Posições livres nas câmaras (hierárquico: câmara → rua → posição) |
+| POST | `/api/resfriamento/oa` | Cria OA com pallets selecionados e destinos opcionais |
+| POST | `/api/resfriamento/oa/{id}/iniciar-execucao` | Inicia execução da OA (`programada → em_execucao`), valida temps e sessão encerrada |
+| POST | `/api/resfriamento/oa/{id}/bipar` | Registra bipagem de um pallet na OA |
+| POST | `/api/resfriamento/oa/{id}/concluir` | Conclui OA (100% bipados): move pallets → armazenamento, ocupa posições |
+| POST | `/api/resfriamento/pallet/{id}/temp` | Salva temperatura de polpa de um pallet individualmente |
+| POST | `/api/resfriamento/sessao/{id}/finalizar` | Encerra sessão do túnel — **NÃO** move pallets |
+| POST | `/api/resfriamento/{id}/rollback` | Volta pallet resfriamento→recepcao, libera posição reservada_oa |
 
 ### `api/routers/armazenamento.py`
 | Método | Endpoint | Ação |
@@ -290,29 +301,48 @@ Os services contêm **todas as regras de negócio**. São funções Python puras
 
 ### `api/services/recepcao.py`
 
-**Regra crítica: geração de ID único**
+**Regra crítica: pallets entram direto em resfriamento**
+
 ```python
-def _gerar_id(nro_pallet, db):
-    # Busca todos os IDs que começam com o número do pallet
-    # Se "10" não existe → retorna "10"
-    # Se "10" existe → tenta "10-A-1", "10-A-2", etc.
+def _garantir_sessao_ativa(tunel, db, now):
+    # Retorna sessão ativa do túnel ou cria automaticamente se não houver
 ```
 
 Funções:
-- `registrar(body)` — gera ID, insere pallet em `recepcao`, grava histórico
-- `listar()` — pallets com `fase = "recepcao"`
+- `registrar(body)` — gera ID único, serializa `areas_controles` (JSONB), insere pallet já em fase `resfriamento`, garante sessão ativa no túnel
+- `listar()` — pallets com `fase in ("recepcao", "resfriamento")`
 - `buscar(id)` — um pallet por ID
-- `rollback(id)` — deleta o pallet **somente se** ainda está em `recepcao`; grava histórico
+- `rollback(id)` — deleta o pallet se estiver em `recepcao` **ou** `resfriamento`; grava histórico
+
+**Rastreabilidade proporcional:**
+- Campo `areas_controles` (JSONB) armazena lista de `{area, controle, qtd_caixas}`
+- A soma de `qtd_caixas` de todos os itens deve ser igual ao total do pallet (validado no schema)
+- Colunas legadas `area` e `controle` são preenchidas com o **primeiro** item da lista
 
 ### `api/services/resfriamento.py`
 
-**Regra crítica: sessão por túnel**
+**Novo fluxo completo — 5 etapas:**
 
-- `status_tuneis()` — lista pallets em `recepcao` OU `resfriamento` com túnel atribuído
-- `iniciar_sessao(tunel)` — cria sessão + **move automaticamente** todos os pallets daquele túnel de `recepcao → resfriamento`
-- `finalizar_sessao(id, temp_saida)` — move todos os pallets do túnel de `resfriamento → armazenamento`, registra temperatura de saída, gera OA
-- `gerar_oa(sessao_id)` — cria registro na tabela `ordens_armazenamento` com ID sequencial `OA-YYYYMMDD-NNN`
-- `rollback(pallet_id)` — volta pallet individual de `resfriamento → recepcao`
+1. Pallet entra automaticamente via Recepção (fase já é `resfriamento`; sessão criada pelo recepcao service)
+2. Operador registra `temp_polpa` individualmente por pallet — `salvar_temp_pallet()`
+3. Operador encerra a sessão — `finalizar_sessao()` — apenas registra encerramento, **não move pallets**
+4. Operador cria OA selecionando pallets + destinos — `criar_oa()` — posições ficam `reservada_oa`
+5. Operador executa OA via bipagem: `iniciar_execucao_oa()` → `bipar_pallet()` → `concluir_oa()` — pallets vão para `armazenamento`
+
+Funções:
+- `status_tuneis()` — pallets em `resfriamento` com túnel atribuído
+- `listar_sessoes(tunel, status)` — sessões filtrável por túnel e status
+- `pallets_em_resfriamento()` — pallets em resfriamento ainda não vinculados a nenhuma OA
+- `pallets_aguardando_oa()` — pallets cujo túnel tem sessão finalizada e ainda sem OA
+- `listar_oas()` — OAs com detalhes dos pallets vinculados
+- `posicoes_disponiveis()` — estrutura `câmara → rua → posições livres` com contadores
+- `salvar_temp_pallet(pallet_id, temp_polpa, observacao, sessao_id)` — persiste temp; pallet permanece em resfriamento
+- `finalizar_sessao(sessao_id)` — apenas marca sessão como `finalizada`; NÃO move pallets
+- `criar_oa(pallet_ids, sessao_id, destinos)` — valida pallets, reserva posições (`reservada_oa`), cria OA com status `programada`
+- `iniciar_execucao_oa(oa_id)` — valida temperaturas e sessão encerrada; OA `programada → em_execucao`
+- `bipar_pallet(oa_id, pallet_id)` — registra scan; retorna `{bipados, total, completo}`
+- `concluir_oa(oa_id)` — valida 100% bipados; move pallets → `armazenamento`; posições → `ocupada`; OA → `concluida`
+- `rollback(pallet_id)` — volta pallet para `recepcao`, libera posição `reservada_oa` se houver
 
 ### `api/services/armazenamento.py`
 
@@ -392,14 +422,17 @@ Representa o estado atual de um pallet no ciclo de vida.
 | `controle` | TEXT | Código de controle |
 | `mercado` | TEXT | Mercado destino |
 | `temp_entrada` | NUMERIC | Temperatura na entrada (°C) |
-| `temp_saida` | NUMERIC | Temperatura na saída do túnel (°C) |
+| `temp_saida` | NUMERIC | Temperatura de polpa (°C), registrada individualmente no resfriamento |
 | `tunel` | TEXT | `"01"` ou `"02"` |
 | `boca` | INTEGER | 1 a 12 |
 | `fase` | TEXT | `recepcao` / `resfriamento` / `armazenamento` / `picking` / `expedido` |
-| `camara` | TEXT | `"01"` ou `"02"` (preenchido ao alocar) |
+| `camara` | TEXT | `"01"` ou `"02"` (preenchido ao alocar via OA ou direto) |
 | `rua` | INTEGER | 1 a 13 |
 | `posicao` | INTEGER | 1 a 6 |
 | `is_adicao` | BOOLEAN | `true` se ID tem sufixo A |
+| `areas_controles` | JSONB | Lista de `{area, controle, qtd_caixas}` — rastreabilidade proporcional |
+
+> **Nota de migration:** `ALTER TABLE pallets ADD COLUMN areas_controles JSONB;`
 
 ### `sessoes_resfriamento`
 Controla o ciclo de cada sessão de resfriamento por túnel.
@@ -415,7 +448,18 @@ Controla o ciclo de cada sessão de resfriamento por túnel.
 | `status` | `"ativa"` ou `"finalizada"` |
 
 ### `ordens_armazenamento` (OA)
-Gerada ao finalizar sessão. Serve como reserva de posições para os pallets que saem do túnel.
+Criada manualmente com pallets selecionados + destinos opcionais. Controla a movimentação do resfriamento para o armazenamento via bipagem.
+
+| Coluna | Descrição |
+|---|---|
+| `id` | `OA-YYYYMMDD-NNN` |
+| `sessao_id` | FK para sessão (opcional) |
+| `criada_em` | Timestamp de criação |
+| `iniciada_em` | Timestamp do início da execução |
+| `executada_em` | Timestamp de conclusão |
+| `status` | `"programada"` / `"em_execucao"` / `"concluida"` |
+| `dados` | JSONB: `{pallets: [...ids], destinos: [{pallet_id, pos_id, camara, rua, posicao}]}` |
+| `itens_bipados` | JSONB: lista de pallet_ids já bipados durante execução |
 
 ### `posicoes_camara`
 Tabela **estática + dinâmica**. Criada e populada pelo seed da migration.
@@ -450,17 +494,18 @@ Cabeçalho do inventário + um item por pallet armazenado com `qtd_sistema`, `qt
 
 | `acao` | Quando é gerado |
 |---|---|
-| `recepcao` | Pallet registrado |
-| `resfriamento_inicio` | Sessão iniciada, pallet sai da recepção |
-| `resfriamento_fim` | Sessão finalizada, pallet vai para armazenamento |
-| `armazenamento_alocacao` | Pallet alocado em posição de câmara |
+| `recepcao` | Pallet registrado (fase já é `resfriamento`) |
+| `temp_polpa_registrada` | Temperatura de polpa registrada individualmente |
+| `oa_criada` | Pallet vinculado a uma OA |
+| `resfriamento_fim` | OA concluída — pallet movido para armazenamento |
+| `armazenamento_alocacao` | Pallet alocado diretamente em posição de câmara |
 | `picking_criacao` | OP criada, posições reservadas |
 | `picking_execucao` | OP executada, pallet em picking |
 | `picking_cancelamento` | OP cancelada, posições liberadas |
 | `expedicao` | Pallet expedido (fase terminal) |
 | `remonte_complementacao` | Fusão de pallet original + adição |
 | `remonte_juncao` | Fusão de dois pallets distintos |
-| `rollback_recepcao` | Pallet excluído |
+| `rollback_recepcao` | Pallet excluído (aceitável em `recepcao` ou `resfriamento`) |
 | `rollback_resfriamento` | Pallet voltou para recepção |
 | `rollback_armazenamento` | Pallet voltou para resfriamento |
 
@@ -547,19 +592,38 @@ document.querySelectorAll('nav a').forEach(a => {
 ## 9. Ciclo de Vida Completo do Pallet
 
 ```
-[RECEPÇÃO]
-    │  POST /api/recepcao/
+[RECEPÇÃO] — POST /api/recepcao/
     │  ID gerado: "10" ou "10-A-1" (conflito)
+    │  areas_controles: lista proporcional de área/controle/caixas
+    │  Sessão do túnel criada automaticamente se não existir
+    │  Pallet entra DIRETO em fase "resfriamento"
     ▼
 [RESFRIAMENTO]
-    │  POST /api/resfriamento/sessao  ← Inicia sessão por túnel
-    │  (move automaticamente todos os pallets do túnel)
-    │  POST /api/resfriamento/sessao/{id}/finalizar
-    │  (temp_saida obrigatória → gera OA)
+    │
+    │  1. Registrar temp de polpa por pallet:
+    │     POST /api/resfriamento/pallet/{id}/temp
+    │
+    │  2. Encerrar sessão do túnel (sem mover pallets):
+    │     POST /api/resfriamento/sessao/{id}/finalizar
+    │
+    │  3. Criar OA com pallets + destinos de câmara:
+    │     POST /api/resfriamento/oa
+    │     (posições ficam com status "reservada_oa")
+    │
+    │  4. Iniciar execução:
+    │     POST /api/resfriamento/oa/{id}/iniciar-execucao
+    │     (valida temps + sessão encerrada)
+    │
+    │  5. Bipar cada pallet:
+    │     POST /api/resfriamento/oa/{id}/bipar
+    │
+    │  6. Concluir OA (100% bipados):
+    │     POST /api/resfriamento/oa/{id}/concluir
+    │     (pallets → armazenamento, posições → ocupada)
     ▼
 [ARMAZENAMENTO]
-    │  POST /api/armazenamento/alocar
-    │  (posição: câmara + rua + posição)
+    │  (posição definida pela OA ou por alocação direta)
+    │  POST /api/armazenamento/alocar  ← alocação avulsa (sem OA)
     │
     ├──► [REMONTES] (opcional)
     │       Complementação: original + A-1 → original (soma)
@@ -576,11 +640,12 @@ document.querySelectorAll('nav a').forEach(a => {
     │  POST /api/expedicao/ordens/{id}/executar
 
 ── Rollbacks ──────────────────────────────────────────────
-  expedido    ← não tem rollback (fase terminal)
-  picking     ← cancelar OP volta para armazenamento
+  expedido      ← não tem rollback (fase terminal)
+  picking       ← cancelar OP volta para armazenamento
   armazenamento → POST /api/armazenamento/{id}/rollback → resfriamento
-  resfriamento  → POST /api/resfriamento/{id}/rollback  → recepcao
+  resfriamento  → POST /api/resfriamento/{id}/rollback  → EXCLUÍDO
   recepcao      → DELETE /api/recepcao/{id}/rollback    → EXCLUÍDO
+  (rollback da recepção também aceita pallets ainda em resfriamento)
 ```
 
 ---
