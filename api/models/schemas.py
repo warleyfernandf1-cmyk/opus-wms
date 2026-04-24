@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 from typing import Optional, Literal, Any
 from datetime import date, datetime
+import re
 import uuid
 
 # ---------------------------------------------------------------------------
@@ -35,6 +36,19 @@ class PalletCreate(BaseModel):
     temp_entrada: float
     tunel: Literal["01", "02"]
     boca: int = Field(..., ge=1, le=12)
+
+    @field_validator('variedade')
+    @classmethod
+    def normalize_variedade(cls, v: str) -> str:
+        """
+        Normaliza o campo variedade independente do separador recebido.
+        Aceita: "ARRA 15", "ARRA 15 | BEBOP", "ARRA 15|BEBOP", "ARRA 15, BEBOP"
+        Saída:  "ARRA 15 | BEBOP"
+        """
+        partes = [p.strip() for p in re.split(r'\s*[|,;]\s*', v) if p.strip()]
+        seen: set = set()
+        dedup = [p for p in partes if not (p in seen or seen.add(p))]  # type: ignore[func-returns-value]
+        return ' | '.join(dedup)
 
     @model_validator(mode='after')
     def validar_distribuicao_caixas(self) -> 'PalletCreate':
