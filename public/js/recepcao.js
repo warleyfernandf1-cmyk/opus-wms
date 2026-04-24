@@ -338,7 +338,29 @@ function fillFormFromImportedRow(row) {
   const textFields = ['nro_pallet','qtd_caixas','data_embalamento','safra','rotulo','produtor','temp_entrada'];
   textFields.forEach(key => { const f = form.elements.namedItem(key); if (f) f.value = row[key] ?? ''; });
 
-  ['variedade','classificacao','embalagem','caixa','mercado'].forEach(key => setSelectValue(key, row[key] ?? ''));
+  // Variedade: se mix (contém ' | '), tenta o primeiro valor no <select>;
+  // o valor completo concatenado fica visível no badge de mix abaixo do campo.
+  const variedadeEl = document.querySelector('[name="variedade"]');
+  if (variedadeEl) {
+    const variedades = (row.variedade || '').split(' | ').map(v => v.trim()).filter(Boolean);
+    const oldBadge = document.getElementById('variedade-mix-badge');
+    if (oldBadge) oldBadge.remove();
+    if (variedades.length > 1) {
+      const options = Array.from(variedadeEl.options);
+      const match = options.find(o => o.value === variedades[0])
+        || options.find(o => o.value.toUpperCase() === variedades[0].toUpperCase());
+      variedadeEl.value = match ? match.value : '';
+      const badge = document.createElement('span');
+      badge.id = 'variedade-mix-badge';
+      badge.style.cssText = 'display:inline-block;margin-top:4px;padding:2px 8px;background:var(--warning);color:#000;border-radius:4px;font-size:.75rem;font-weight:600;letter-spacing:.02em;';
+      badge.title = 'Mix de variedades — valor completo registrado no pallet';
+      badge.textContent = row.variedade;
+      variedadeEl.parentElement.appendChild(badge);
+    } else {
+      setSelectValue('variedade', row.variedade ?? '');
+    }
+  }
+  ['classificacao','embalagem','caixa','mercado'].forEach(key => setSelectValue(key, row[key] ?? ''));
   if (row.peso) setSelectValue('peso', row.peso);
 
   // Popula exatamente N linhas de área/controle conforme o array (sem linha em branco extra)
@@ -416,10 +438,16 @@ function parseWorksheetRows(rows) {
       // Mesma linha de pallet — adiciona área/controle e soma caixas
       prev.areas_controles.push({ area: row.area, controle: row.controle, qtd_caixas: row.qtd_caixas });
       prev.qtd_caixas += row.qtd_caixas;
+      // Acumula variedades distintas
+      if (row.variedade && !prev._variedades.includes(row.variedade)) {
+        prev._variedades.push(row.variedade);
+        prev.variedade = prev._variedades.join(' | ');
+      }
     } else {
       grouped.push({
         ...row,
         _saved: false,
+        _variedades: [row.variedade].filter(Boolean),
         areas_controles: [{ area: row.area, controle: row.controle, qtd_caixas: row.qtd_caixas }],
       });
     }
