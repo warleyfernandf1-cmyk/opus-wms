@@ -135,6 +135,14 @@ def limpar_fotos_sessao(
     return svc.limpar_fotos_sessao(sessao_id)
 
 
+@router.post("/sessao/{sessao_id}/persistir-relatorio")
+def persistir_relatorio_sessao(
+    sessao_id: str,
+    user: dict = Depends(_OPERADOR_ACIMA),
+):
+    return svc.persistir_relatorio(sessao_id)
+
+
 # ── Admin ─────────────────────────────────────────────────────
 
 @router.post("/{pallet_id}/rollback")

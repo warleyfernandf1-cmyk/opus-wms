@@ -294,8 +294,16 @@ async function encerrarSessao() {
   if (!sessaoAtiva) return;
   try {
     const sessaoFinalizada = await api.post(`/resfriamento/sessao/${sessaoAtiva.id}/finalizar`, {});
-    showToast('Sessão encerrada. Pallets aguardam vínculo a OA no módulo Armazenamento.', 'success');
     sessaoAtiva = sessaoFinalizada || { ...sessaoAtiva, status: 'finalizada' };
+
+    // Persiste relatório automaticamente no módulo Relatórios
+    try {
+      await api.post(`/resfriamento/sessao/${sessaoAtiva.id}/persistir-relatorio`, {});
+      showToast('Sessão encerrada. Relatório salvo em Relatórios.', 'success');
+    } catch (_) {
+      showToast('Sessão encerrada. Pallets aguardam OA no módulo Armazenamento.', 'success');
+    }
+
     fecharDetalhe(false);
     await renderSessaoBar();
     atualizarEncerrarBar();

@@ -4,6 +4,64 @@
   <meta charset="UTF-8">
   <title>Relatórios — Opus WMS</title>
   <link rel="stylesheet" href="css/main.css">
+  <style>
+    /* ── Modal overlay ── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 5000;
+      background: rgba(0,0,0,.72);
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; width: 100%; max-width: 720px;
+      max-height: 85vh; display: flex; flex-direction: column;
+      overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,.6);
+    }
+    .modal-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .modal-hdr-title { font-size: .95rem; font-weight: 700; color: var(--text); }
+    .modal-body { overflow-y: auto; padding: 20px; flex: 1; }
+    .modal-ftr {
+      display: flex; gap: 8px; padding: 14px 20px;
+      border-top: 1px solid var(--border); flex-shrink: 0;
+      justify-content: flex-end;
+    }
+    .stat-mini-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 8px; margin-bottom: 16px;
+      padding: 12px; background: var(--surface2); border-radius: 8px;
+    }
+    .stat-mini-box .lbl { font-size: .62rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin-bottom: 2px; }
+    .stat-mini-box .val { font-size: 1rem; font-weight: 700; color: var(--text); }
+    .pallet-table { width: 100%; font-size: .8rem; border-collapse: collapse; }
+    .pallet-table th {
+      padding: 6px 8px; text-align: left;
+      font-size: .62rem; text-transform: uppercase; letter-spacing: .04em;
+      color: var(--text-muted); border-bottom: 1px solid var(--border);
+    }
+    .pallet-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); }
+    .pallet-table tr:last-child td { border-bottom: none; }
+    .pallet-table .num { text-align: right; }
+
+    /* ── Badge modulo ── */
+    .badge-resfriamento { background: rgba(99,102,241,.18); color: var(--accent); }
+    .badge-recepcao     { background: rgba(34,197,94,.18);  color: var(--success); }
+    .badge-inventario   { background: rgba(245,158,11,.18); color: var(--warning); }
+    .badge-expedicao    { background: rgba(239,68,68,.18);  color: var(--danger); }
+
+    /* ── Print: esconde tudo exceto o relatório ── */
+    @media print {
+      #sidebar, #main { display: none !important; }
+      .modal-overlay  { display: none !important; }
+      #relatorio-pdf  { display: block !important; }
+    }
+    #relatorio-pdf { display: none; }
+  </style>
 </head>
 <body>
 <aside id="sidebar">
@@ -34,39 +92,74 @@
     <button class="btn-logout" onclick="logout()">↪ Sair</button>
   </div>
 </aside>
+
 <div id="main">
-  <header><h1>Relatórios</h1>
-  <div class="header-right">
-    <span class="header-datetime" id="header-datetime"></span>
-    <div class="header-user-info">
-      <span class="header-nome" id="header-nome">—</span>
-      <span class="header-role" id="header-role"></span>
+  <header>
+    <h1>Relatórios</h1>
+    <div class="header-right">
+      <span class="header-datetime" id="header-datetime"></span>
+      <div class="header-user-info">
+        <span class="header-nome" id="header-nome">—</span>
+        <span class="header-role" id="header-role"></span>
+      </div>
+      <button class="btn-header-logout" onclick="logout()">&#x21AA; Sair</button>
     </div>
-    <button class="btn-header-logout" onclick="logout()">&#x21AA; Sair</button>
-  </div>
-</header>
+  </header>
+
   <div class="content">
     <div class="toolbar">
       <select id="filtro-modulo">
         <option value="">Todos os módulos</option>
+        <option value="resfriamento">Resfriamento</option>
         <option value="inventario">Inventário</option>
         <option value="recepcao">Recepção</option>
         <option value="expedicao">Expedição</option>
       </select>
       <button class="btn btn-ghost btn-sm" id="btn-refresh">↻ Atualizar</button>
     </div>
+
     <div class="card">
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Módulo</th><th>Título</th><th>Início</th><th>Fim</th><th>Tempo Médio</th><th>Ações</th></tr>
+            <tr>
+              <th>Módulo</th>
+              <th>Título</th>
+              <th>Início</th>
+              <th>Encerramento</th>
+              <th>Duração</th>
+              <th>Ações</th>
+            </tr>
           </thead>
-          <tbody id="tbody-relatorios"><tr><td colspan="6" class="text-muted">Carregando...</td></tr></tbody>
+          <tbody id="tbody-relatorios">
+            <tr><td colspan="6" class="text-muted">Carregando...</td></tr>
+          </tbody>
         </table>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Modal de detalhe -->
+<div class="modal-overlay" id="modal-overlay" onclick="fecharModalSe(event)">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <span class="modal-hdr-title" id="modal-titulo">—</span>
+      <button class="btn btn-ghost btn-sm" onclick="fecharModal()">✕ Fechar</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-ftr">
+      <button class="btn btn-ghost" onclick="fecharModal()">Fechar</button>
+      <button class="btn btn-primary" id="btn-modal-imprimir" style="display:none" onclick="imprimirAtual()">
+        🖨 Imprimir
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Contêiner de impressão (invisível até window.print()) -->
+<div id="relatorio-pdf"></div>
+
 <script src="js/api.js"></script>
 <script src="js/relatorios.js"></script>
 </body>

@@ -716,3 +716,78 @@ def limpar_fotos_sessao(sessao_id: str) -> dict:
             }).eq("id", pid).execute()
 
     return {"ok": True, "fotos_removidas": len(paths)}
+
+
+# ─── persistência no módulo Relatórios ───────────────────────
+
+def persistir_relatorio(sessao_id: str) -> dict:
+    db = get_db()
+
+    data = relatorio_sessao(sessao_id)
+    sessao = data["sessao"]
+    estatisticas = data["estatisticas"]
+
+    # Número da remessa: quantas sessões do mesmo túnel no mesmo dia
+    tunel = sessao.get("tunel", "??")
+    dia = (sessao.get("iniciado_em") or "")[:10]
+    remessa = 1
+    if dia:
+        dia_sessoes = (
+            db.table("sessoes_resfriamento")
+            .select("id,iniciado_em")
+            .eq("tunel", tunel)
+            .gte("iniciado_em", f"{dia}T00:00:00")
+            .lte("iniciado_em", f"{dia}T23:59:59")
+            .order("iniciado_em")
+            .execute()
+            .data
+        )
+        remessa = next(
+            (i + 1 for i, s in enumerate(dia_sessoes) if s["id"] == sessao_id), 1
+        )
+
+    iniciado = _parse_ts(sessao.get("iniciado_em"))
+    semana = iniciado.isocalendar()[1] if iniciado else 0
+    titulo = f"T{tunel} - {remessa}ªRemessa - S{semana}"
+
+    # Tempo de operação em segundos
+    tempo_s = None
+    top = estatisticas.get("tempo_operacao")
+    if top:
+        parts = top.split(":")
+        if len(parts) == 3:
+            try:
+                tempo_s = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+            except ValueError:
+                pass
+
+    row = {
+        "modulo": "resfriamento",
+        "titulo": titulo,
+        "dados": {**data, "titulo": titulo},
+        "inicio_execucao": sessao.get("iniciado_em"),
+        "fim_execucao": sessao.get("finalizado_em"),
+        "tempo_medio_s": tempo_s,
+        "sessao_id": sessao_id,
+    }
+
+    # Upsert: atualiza se já existir, insere se não
+    existing = (
+        db.table("relatorios")
+        .select("id")
+        .eq("sessao_id", sessao_id)
+        .execute()
+        .data
+    )
+    if existing:
+        result = (
+            db.table("relatorios")
+            .update(row)
+            .eq("sessao_id", sessao_id)
+            .execute()
+            .data
+        )
+    else:
+        result = db.table("relatorios").insert(row).execute().data
+
+    return result[0] if result else {}
