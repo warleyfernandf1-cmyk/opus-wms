@@ -19,7 +19,11 @@
    └──────┴───────┴───────┴───┴───────┘
    ──────────────────────────────────────────────────────────────────────────── */
 
-let _tooltip = null;
+let _tooltip  = null;
+let _dragCell = null;   // dados da célula de origem
+let _dragEl   = null;   // elemento DOM da célula de origem
+let _ghostEl  = null;   // ghost flutuante para touch drag
+let _camAtual = '01';   // câmara exibida, para refresh pós-mover
 
 // ── Utilitários ───────────────────────────────────────────────────────────────
 
@@ -51,6 +55,7 @@ function getTooltip() {
 }
 
 function showTooltip(e, cell) {
+  if (_dragCell) return; // não mostrar tooltip durante drag
   const tt = getTooltip();
   const p  = cell.pallet || {};
   const dias = diasDesde(p.data_embalamento);
@@ -60,13 +65,12 @@ function showTooltip(e, cell) {
     html = `<span style="color:var(--muted);font-size:.75rem">⬛ Porta / Gap</span>`;
 
   } else if (!cell.pallet_id) {
-    // Livre
     html = `
       <div style="color:var(--muted);font-size:.7rem;margin-bottom:3px">${cell.id}</div>
       <div style="color:var(--success);font-size:.8rem">● Livre</div>`;
 
   } else {
-    const isCor   = cell.tipo === 'corredor';
+    const isCor    = cell.tipo === 'corredor';
     const corBadge = isCor ? `<span style="font-size:.68rem;color:var(--warning)"> · Corredor</span>` : '';
     const statusCor = cell.status === 'ocupada' ? 'var(--accent)' : 'var(--warning)';
     const statusLbl = cell.status === 'ocupada' ? 'Ocupada'       : 'Reservada';
@@ -105,25 +109,83 @@ function hideTooltip() {
   getTooltip().style.display = 'none';
 }
 
+// ── Drag & Drop — helpers ─────────────────────────────────────────────────────
+
+function _criarGhost(palletId) {
+  const g = document.createElement('div');
+  g.className = 'dnd-ghost';
+  g.textContent = `↕ Pallet #${palletId}`;
+  document.body.appendChild(g);
+  return g;
+}
+
+function _moverGhost(x, y) {
+  if (_ghostEl) {
+    _ghostEl.style.left = x + 'px';
+    _ghostEl.style.top  = y + 'px';
+  }
+}
+
+function _limparGhost() {
+  if (_ghostEl) { _ghostEl.remove(); _ghostEl = null; }
+}
+
+function _limparDestaques() {
+  document.querySelectorAll('.drag-over-valid, .drag-over-blocked')
+    .forEach(el => el.classList.remove('drag-over-valid', 'drag-over-blocked'));
+}
+
+async function _executarMove(origemId, destinoId) {
+  if (!origemId || !destinoId || origemId === destinoId) return;
+  try {
+    await api.post('/camaras/mover', {
+      posicao_origem_id: origemId,
+      posicao_destino_id: destinoId,
+    });
+    showToast('Pallet movido com sucesso', 'success');
+    renderCamara(_camAtual);
+  } catch (err) {
+    showToast('Erro ao mover: ' + err.message, 'error');
+  }
+}
+
+// Adiciona handlers de "drop bloqueado" (feedback visual sem aceitar drop)
+function _bindBlockedDrop(div, ownId) {
+  div.addEventListener('dragover', e => {
+    if (!_dragCell) return;
+    if (ownId && _dragCell.id === ownId) return; // ignorar hover sobre si mesmo
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'none';
+    div.classList.add('drag-over-blocked');
+  });
+  div.addEventListener('dragleave', () => div.classList.remove('drag-over-blocked'));
+  div.addEventListener('drop', e => {
+    e.preventDefault();
+    div.classList.remove('drag-over-blocked');
+  });
+}
+
 // ── Célula ────────────────────────────────────────────────────────────────────
 
 function buildCell(cell) {
   const div = document.createElement('div');
+  div.dataset.cellId = cell.id;
 
   if (cell.is_gap) {
     div.className = 'pcv2 gap';
-    // gaps não têm hover interativo
+    _bindBlockedDrop(div);
     return div;
   }
 
   const isCor = cell.tipo === 'corredor';
   let sc = 'livre';
-  if (cell.status === 'ocupada')                      sc = 'ocupada';
+  if (cell.status === 'ocupada')                               sc = 'ocupada';
   else if (cell.status && cell.status.startsWith('reservada')) sc = 'reservada';
 
   div.className = `pcv2${isCor ? ' corredor' : ''} ${sc}`;
 
   if (cell.pallet_id) {
+    // ── Conteúdo ──
     const p  = cell.pallet || {};
     const va = p.variedade     ? trunc(p.variedade, 10)     : '';
     const cl = p.classificacao ? trunc(p.classificacao, 10) : '';
@@ -132,12 +194,102 @@ function buildCell(cell) {
       (va ? `<span class="pcv2-var">(${va})</span>` : '') +
       (cl ? `<span class="pcv2-cls">${cl}</span>`   : '');
 
-  } else if (isCor && cell._ruaLabel) {
-    // Célula livre do corredor: mostra o label da rua (ex: "07") como na referência
-    div.innerHTML = `<span class="pcv2-rua-num">${cell._ruaLabel}</span>`;
+    // ── Desktop drag — origem ──
+    div.draggable = true;
 
+    div.addEventListener('dragstart', e => {
+      _dragCell = cell;
+      _dragEl   = div;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', cell.id);
+      requestAnimationFrame(() => div.classList.add('dragging'));
+    });
+
+    div.addEventListener('dragend', () => {
+      div.classList.remove('dragging');
+      _limparDestaques();
+      _dragCell = null;
+      _dragEl   = null;
+    });
+
+    // Bloquear drop nesta célula ocupada (exceto a própria)
+    _bindBlockedDrop(div, cell.id);
+
+    // ── Touch drag — origem ──
+    div.addEventListener('touchstart', e => {
+      const t = e.touches[0];
+      _dragCell = cell;
+      _dragEl   = div;
+      _ghostEl  = _criarGhost(cell.pallet_id);
+      _moverGhost(t.clientX, t.clientY);
+      div.classList.add('dragging');
+    }, { passive: true });
+
+    div.addEventListener('touchmove', e => {
+      e.preventDefault(); // bloqueia scroll durante drag
+      const t = e.touches[0];
+      _moverGhost(t.clientX, t.clientY);
+
+      // Identificar célula sob o dedo
+      _ghostEl.style.display = 'none';
+      const under = document.elementFromPoint(t.clientX, t.clientY);
+      _ghostEl.style.display = '';
+
+      _limparDestaques();
+      if (under) {
+        const target = under.closest('.pcv2');
+        if (target && target !== div) {
+          const isLivre = target.classList.contains('livre') && !target.classList.contains('gap');
+          target.classList.add(isLivre ? 'drag-over-valid' : 'drag-over-blocked');
+        }
+      }
+    }, { passive: false });
+
+    div.addEventListener('touchend', e => {
+      const t = e.changedTouches[0];
+      if (_ghostEl) _ghostEl.style.display = 'none';
+      const under = document.elementFromPoint(t.clientX, t.clientY);
+      _limparGhost();
+      _limparDestaques();
+      div.classList.remove('dragging');
+
+      if (under && _dragCell) {
+        const target = under.closest('.pcv2');
+        if (
+          target && target !== div &&
+          target.classList.contains('livre') &&
+          !target.classList.contains('gap') &&
+          target.dataset.cellId
+        ) {
+          _executarMove(_dragCell.id, target.dataset.cellId);
+        }
+      }
+
+      _dragCell = null;
+      _dragEl   = null;
+    });
+
+  } else if (isCor && cell._ruaLabel) {
+    div.innerHTML = `<span class="pcv2-rua-num">${cell._ruaLabel}</span>`;
   }
-  // Células livres de posição ficam visualmente vazias (só a cor de fundo)
+
+  // ── Drop zone — células livres ──
+  if (sc === 'livre') {
+    div.addEventListener('dragover', e => {
+      if (!_dragCell) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      div.classList.add('drag-over-valid');
+    });
+    div.addEventListener('dragleave', () => div.classList.remove('drag-over-valid'));
+    div.addEventListener('drop', e => {
+      e.preventDefault();
+      div.classList.remove('drag-over-valid');
+      if (_dragCell) _executarMove(_dragCell.id, cell.id);
+    });
+  } else if (sc === 'reservada') {
+    _bindBlockedDrop(div);
+  }
 
   div.addEventListener('mouseenter', e => showTooltip(e, cell));
   div.addEventListener('mousemove',  moveTooltip);
@@ -148,6 +300,7 @@ function buildCell(cell) {
 // ── Render ────────────────────────────────────────────────────────────────────
 
 async function renderCamara(id) {
+  _camAtual = id;
   document.querySelectorAll('.btn-camara-tab').forEach(b =>
     b.classList.toggle('active', b.dataset.cam === id));
   document.getElementById('camara-titulo').textContent = `Câmara ${id}`;
@@ -160,8 +313,6 @@ async function renderCamara(id) {
     const posicoes = data.posicoes || [];
 
     // ── Indexar ───────────────────────────────────────────────────────────────
-    // ruasMap[rua][posicao] → cell   (rua 1…13, posicao 1…6)
-    // corSeq[posicao]       → cell   (posicao 1…N, sequencial)
     const ruasMap = {};
     const corSeq  = {};
     let maxRua = 0, maxPos = 0, totalCorPosicoes = 0;
@@ -178,29 +329,20 @@ async function renderCamara(id) {
       }
     }
 
-    // totalCorPosicoes deve ser igual a maxRua (1 posição de corredor por rua)
-    // Garantia: usa o maior dos dois
     const numCols = Math.max(maxRua, totalCorPosicoes);
-
-    // Ordem das colunas: decrescente (R13 → R01)
-    // colIndex 0 (mais à esq.) = rua numCols, colIndex N-1 = rua 1
-    // Mapeamento: corSeq[posicao] onde posicao 1 = rua mais alta (R13)
-    // → coluna visual c corresponde à rua: numCols - c
-    // → posicao no corredor: c + 1   (1-based)
 
     // ── Grid CSS ──────────────────────────────────────────────────────────────
     mapEl.innerHTML = '';
     const grid = document.createElement('div');
     grid.className = 'camv2-grid';
     grid.style.gridTemplateColumns = `44px repeat(${numCols}, 1fr)`;
-    // linhas: [header-rua 22px] [corredor 1fr] [sep 7px] [P01…Pn 1fr cada]
     grid.style.gridTemplateRows = `22px 1fr 7px repeat(${maxPos}, 1fr)`;
     mapEl.appendChild(grid);
 
-    // ── Linha 0: cabeçalhos de rua (R13 … R01) ───────────────────────────────
-    _cell(grid, '');                          // canto vazio
+    // ── Linha 0: cabeçalhos de rua ────────────────────────────────────────────
+    _cell(grid, '');
     for (let c = 0; c < numCols; c++) {
-      const rua = numCols - c;               // R13 primeiro
+      const rua = numCols - c;
       const lbl = document.createElement('div');
       lbl.className   = 'camv2-col-header';
       lbl.textContent = `R${String(rua).padStart(2, '0')}`;
@@ -210,17 +352,15 @@ async function renderCamara(id) {
     // ── Linha 1: corredor ─────────────────────────────────────────────────────
     const corLbl = document.createElement('div');
     corLbl.className = 'camv2-row-label camv2-cor-label';
-    corLbl.innerHTML =
-      `<span>C0</span><span class="camv2-cor-sub">${numCols}P</span>`;
+    corLbl.innerHTML = `<span>C0</span><span class="camv2-cor-sub">${numCols}P</span>`;
     grid.appendChild(corLbl);
 
     for (let c = 0; c < numCols; c++) {
-      const corPos = c + 1;                 // posicao sequencial (1-based)
-      const rua    = numCols - c;           // rua visual correspondente
+      const corPos = c + 1;
+      const rua    = numCols - c;
       const cell   = corSeq[corPos] || null;
 
       if (cell) {
-        // Injetar label da rua para exibir dentro das células livres
         cell._ruaLabel = String(rua).padStart(2, '0');
         grid.appendChild(buildCell(cell));
       } else {

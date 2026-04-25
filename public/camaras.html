@@ -127,6 +127,45 @@
       opacity: .8;
     }
 
+    /* ── Drag and Drop ── */
+    .pcv2[draggable="true"] { cursor: grab; }
+    .pcv2[draggable="true"]:active { cursor: grabbing; }
+    .pcv2.dragging {
+      opacity: .3;
+      transform: scale(.92);
+      box-shadow: none !important;
+      border-style: dashed !important;
+    }
+    .pcv2.drag-over-valid {
+      border-color: #22c55e !important;
+      border-width: 2px !important;
+      box-shadow: 0 0 0 3px rgba(34,197,94,.35) !important;
+      background: rgba(34,197,94,.22) !important;
+      z-index: 3;
+      position: relative;
+    }
+    .pcv2.drag-over-blocked {
+      border-color: rgba(239,68,68,.65) !important;
+      box-shadow: 0 0 0 2px rgba(239,68,68,.22) !important;
+      background: rgba(239,68,68,.1) !important;
+      cursor: not-allowed;
+    }
+    /* Ghost flutuante para touch drag */
+    .dnd-ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 9998;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: .78rem;
+      font-weight: 700;
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(0,0,0,.5);
+      transform: translate(-50%, -160%);
+      white-space: nowrap;
+    }
+
     /* ── Abas ── */
     .btn-camara-tab {
       background: transparent;
