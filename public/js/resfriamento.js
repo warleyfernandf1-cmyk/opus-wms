@@ -74,7 +74,7 @@ function atualizarEncerrarBar() {
   const info = document.getElementById('encerrar-info');
   const todos = palletsDoTunel();
 
-  if (!sessaoAtiva || todos.length === 0) { bar.style.display = 'none'; return; }
+  if (!sessaoAtiva || sessaoAtiva.status !== 'ativa' || todos.length === 0) { bar.style.display = 'none'; return; }
 
   bar.style.display = 'flex';
   const comTemp = todos.filter(p => p.temp_saida != null).length;
@@ -129,8 +129,19 @@ async function selectTunel(tunel) {
 
   sessaoAtiva = null;
   try {
-    const sessoes = await api.get(`/resfriamento/sessoes?tunel=${tunel}&status=ativa`);
-    sessaoAtiva = Array.isArray(sessoes) && sessoes.length > 0 ? sessoes[0] : null;
+    const ativas = await api.get(`/resfriamento/sessoes?tunel=${tunel}&status=ativa`);
+    if (Array.isArray(ativas) && ativas.length > 0) {
+      sessaoAtiva = ativas[0];
+    } else {
+      // Sem sessão ativa — carrega a última finalizada para permitir gerar o relatório
+      const finalizadas = await api.get(`/resfriamento/sessoes?tunel=${tunel}&status=finalizada`);
+      if (Array.isArray(finalizadas) && finalizadas.length > 0) {
+        finalizadas.sort((a, b) =>
+          new Date(b.finalizado_em || b.iniciado_em) - new Date(a.finalizado_em || a.iniciado_em)
+        );
+        sessaoAtiva = finalizadas[0];
+      }
+    }
   } catch (_) {}
 
   await renderSessaoBar();
