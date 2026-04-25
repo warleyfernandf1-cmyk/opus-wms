@@ -517,6 +517,28 @@ tr:hover td { background: var(--surface2); }
 
 .foto-preview.visible { display: block; }
 
+.foto-remover {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 10;
+  background: rgba(15,23,42,.8);
+  border: 1px solid rgba(255,255,255,.25);
+  color: #fff;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  font-size: .8rem;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background .15s;
+}
+.foto-remover:hover { background: rgba(239,68,68,.85); }
+.foto-remover.visible { display: flex; }
+
 .foto-status {
   font-size: .72rem;
   height: 16px;

@@ -168,11 +168,15 @@ function abrirDetalhe(palletId, boca) {
 
 function fecharDetalhe(rerender = true) {
   palletSelecionadoId = null;
-  fotoSaidaUrl = null;
-  const preview = document.getElementById('preview-temp-saida');
-  const status  = document.getElementById('status-temp-saida');
-  if (preview) { preview.src = ''; preview.classList.remove('visible'); }
-  if (status)  { status.className = 'foto-status'; status.textContent = ''; }
+  fotoSaidaUrl  = null;
+  fotoSaidaPath = null;
+  ['preview-temp-saida', 'status-temp-saida', 'remover-temp-saida'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (id.startsWith('preview')) { el.src = ''; el.classList.remove('visible'); }
+    else if (id.startsWith('status')) { el.className = 'foto-status'; el.textContent = ''; }
+    else el.classList.remove('visible');
+  });
   const input = document.getElementById('foto-temp-saida');
   if (input) input.value = '';
   document.getElementById('detalhe-panel').classList.remove('ativo');
@@ -181,13 +185,29 @@ function fecharDetalhe(rerender = true) {
 
 /* ─── foto de saída ──────────────────────────────────────────── */
 
+let fotoSaidaPath = null;
+
+async function _limparArquivoSaida() {
+  if (!fotoSaidaPath) return;
+  try {
+    const token = sessionStorage.getItem('token');
+    await fetch('/api/upload/limpar', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify([fotoSaidaPath]),
+    });
+  } catch (_) {}
+}
+
 async function uploadFotoSaida(file) {
   const statusEl  = document.getElementById('status-temp-saida');
   const previewEl = document.getElementById('preview-temp-saida');
+  const removerEl = document.getElementById('remover-temp-saida');
   statusEl.className = 'foto-status uploading';
   statusEl.textContent = '⏳ Enviando…';
   previewEl.src = URL.createObjectURL(file);
   previewEl.classList.add('visible');
+  removerEl.classList.remove('visible');
 
   try {
     const fd = new FormData();
@@ -204,14 +224,30 @@ async function uploadFotoSaida(file) {
       throw new Error(err.detail || 'Erro no upload');
     }
     const data = await resp.json();
-    fotoSaidaUrl = data.url;
+    fotoSaidaUrl  = data.url;
+    fotoSaidaPath = data.path;
     statusEl.className = 'foto-status ok';
     statusEl.textContent = '✔ Foto enviada';
+    removerEl.classList.add('visible');
   } catch (e) {
-    fotoSaidaUrl = null;
+    fotoSaidaUrl  = null;
+    fotoSaidaPath = null;
     statusEl.className = 'foto-status erro';
     statusEl.textContent = '✖ Falha: ' + e.message;
   }
+}
+
+async function removerFotoSaida() {
+  await _limparArquivoSaida();
+  fotoSaidaUrl  = null;
+  fotoSaidaPath = null;
+  const previewEl = document.getElementById('preview-temp-saida');
+  const statusEl  = document.getElementById('status-temp-saida');
+  const removerEl = document.getElementById('remover-temp-saida');
+  previewEl.src = ''; previewEl.classList.remove('visible');
+  statusEl.className = 'foto-status'; statusEl.textContent = '';
+  removerEl.classList.remove('visible');
+  document.getElementById('foto-temp-saida').value = '';
 }
 
 /* ─── salvar temperatura ─────────────────────────────────────── */
@@ -367,7 +403,14 @@ async function gerarRelatorio() {
 
 document.getElementById('foto-temp-saida').addEventListener('change', async e => {
   const file = e.target.files?.[0];
-  if (file) await uploadFotoSaida(file);
+  if (!file) return;
+  await _limparArquivoSaida();
+  await uploadFotoSaida(file);
+});
+
+document.getElementById('remover-temp-saida').addEventListener('click', e => {
+  e.stopPropagation();
+  removerFotoSaida();
 });
 
 async function init() {

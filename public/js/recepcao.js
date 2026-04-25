@@ -485,17 +485,30 @@ async function handlePlanilha(file) {
 // ─────────────────────────────────────────────────────────
 //  REGISTRO FOTOGRÁFICO — ENTRADA
 // ─────────────────────────────────────────────────────────
-const fotoUrls = { temp_entrada: null, espelho: null, pallet_entrada: null };
+const fotoUrls  = { temp_entrada: null, espelho: null, pallet_entrada: null };
+const fotoPaths = { temp_entrada: null, espelho: null, pallet_entrada: null };
 
-async function uploadFoto(file, tipo, key, previewId, statusId) {
-  const statusEl = document.getElementById(statusId);
+async function _limparArquivo(path) {
+  if (!path) return;
+  try {
+    const token = sessionStorage.getItem('token');
+    await fetch('/api/upload/limpar', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify([path]),
+    });
+  } catch (_) {}
+}
+
+async function uploadFoto(file, tipo, key, previewId, statusId, removerId) {
+  const statusEl  = document.getElementById(statusId);
   const previewEl = document.getElementById(previewId);
+  const removerEl = document.getElementById(removerId);
   statusEl.className = 'foto-status uploading';
   statusEl.textContent = '⏳ Enviando…';
-
-  const localUrl = URL.createObjectURL(file);
-  previewEl.src = localUrl;
+  previewEl.src = URL.createObjectURL(file);
   previewEl.classList.add('visible');
+  removerEl.classList.remove('visible');
 
   try {
     const fd = new FormData();
@@ -512,37 +525,65 @@ async function uploadFoto(file, tipo, key, previewId, statusId) {
       throw new Error(err.detail || 'Erro no upload');
     }
     const data = await resp.json();
-    fotoUrls[key] = data.url;
+    fotoUrls[key]  = data.url;
+    fotoPaths[key] = data.path;
     statusEl.className = 'foto-status ok';
     statusEl.textContent = '✔ Foto enviada';
+    removerEl.classList.add('visible');
   } catch (e) {
-    fotoUrls[key] = null;
+    fotoUrls[key]  = null;
+    fotoPaths[key] = null;
     statusEl.className = 'foto-status erro';
     statusEl.textContent = '✖ Falha: ' + e.message;
   }
 }
 
-function bindFotoInput(inputId, tipo, key, previewId, statusId) {
+async function removerFoto(key, inputId, previewId, statusId, removerId) {
+  await _limparArquivo(fotoPaths[key]);
+  fotoUrls[key]  = null;
+  fotoPaths[key] = null;
+  const previewEl = document.getElementById(previewId);
+  const statusEl  = document.getElementById(statusId);
+  const removerEl = document.getElementById(removerId);
+  previewEl.src = ''; previewEl.classList.remove('visible');
+  statusEl.className = 'foto-status'; statusEl.textContent = '';
+  removerEl.classList.remove('visible');
+  document.getElementById(inputId).value = '';
+}
+
+function bindFotoInput(inputId, tipo, key, previewId, statusId, removerId) {
   document.getElementById(inputId).addEventListener('change', async e => {
     const file = e.target.files?.[0];
     if (!file) return;
-    await uploadFoto(file, tipo, key, previewId, statusId);
+    // Se já havia foto, remove do storage antes de enviar nova
+    await _limparArquivo(fotoPaths[key]);
+    await uploadFoto(file, tipo, key, previewId, statusId, removerId);
+  });
+  document.getElementById(removerId).addEventListener('click', e => {
+    e.stopPropagation();
+    removerFoto(key, inputId, previewId, statusId, removerId);
   });
 }
 
 function clearFotos() {
-  fotoUrls.temp_entrada = null;
-  fotoUrls.espelho = null;
-  fotoUrls.pallet_entrada = null;
-  ['temp-entrada', 'espelho', 'pallet-entrada'].forEach(k => {
-    const preview = document.getElementById(`preview-${k}`);
-    const status  = document.getElementById(`status-${k}`);
+  ['temp_entrada', 'espelho', 'pallet_entrada'].forEach(k => {
+    fotoUrls[k]  = null;
+    fotoPaths[k] = null;
+  });
+  [
+    ['temp-entrada',   'foto-temp-entrada'],
+    ['espelho',        'foto-espelho'],
+    ['pallet-entrada', 'foto-pallet-entrada'],
+  ].forEach(([slug, inputId]) => {
+    const preview = document.getElementById(`preview-${slug}`);
+    const status  = document.getElementById(`status-${slug}`);
+    const remover = document.getElementById(`remover-${slug}`);
     if (preview) { preview.src = ''; preview.classList.remove('visible'); }
     if (status)  { status.className = 'foto-status'; status.textContent = ''; }
+    if (remover) remover.classList.remove('visible');
+    const input = document.getElementById(inputId);
+    if (input) input.value = '';
   });
-  document.getElementById('foto-temp-entrada').value = '';
-  document.getElementById('foto-espelho').value = '';
-  document.getElementById('foto-pallet-entrada').value = '';
 }
 
 // ─────────────────────────────────────────────────────────
@@ -854,9 +895,9 @@ async function salvarEdicao() {
 // ─────────────────────────────────────────────────────────
 //  INIT
 // ─────────────────────────────────────────────────────────
-bindFotoInput('foto-temp-entrada',   'recepcao', 'temp_entrada',    'preview-temp-entrada',   'status-temp-entrada');
-bindFotoInput('foto-espelho',        'recepcao', 'espelho',         'preview-espelho',         'status-espelho');
-bindFotoInput('foto-pallet-entrada', 'recepcao', 'pallet_entrada',  'preview-pallet-entrada',  'status-pallet-entrada');
+bindFotoInput('foto-temp-entrada',   'recepcao', 'temp_entrada',   'preview-temp-entrada',   'status-temp-entrada',   'remover-temp-entrada');
+bindFotoInput('foto-espelho',        'recepcao', 'espelho',         'preview-espelho',         'status-espelho',         'remover-espelho');
+bindFotoInput('foto-pallet-entrada', 'recepcao', 'pallet_entrada',  'preview-pallet-entrada',  'status-pallet-entrada',  'remover-pallet-entrada');
 
 renderImportPreview();
 addAreaControle();   // inicia com uma linha vazia
