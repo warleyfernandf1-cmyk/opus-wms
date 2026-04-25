@@ -12,9 +12,21 @@ Fluxo completo:
   5. Operador executa a OA — valida temperaturas + sessão encerrada →
      move pallets resfriamento → armazenamento e ocupa as posições.
 """
+import re
 from datetime import datetime
 from fastapi import HTTPException
 from api.db.client import get_db
+
+
+def _parse_ts(s) -> datetime | None:
+    """Parse Supabase ISO timestamp ignorando timezone."""
+    if not s:
+        return None
+    clean = re.sub(r'([+-]\d{2}:\d{2}|Z)$', '', str(s)).strip()
+    try:
+        return datetime.fromisoformat(clean)
+    except Exception:
+        return None
 
 
 def _next_oa_id(db) -> str:
@@ -570,6 +582,7 @@ def relatorio_sessao(sessao_id: str) -> dict:
     pallets = (
         db.table("pallets")
         .select("id,nro_pallet,variedade,classificacao,qtd_caixas,boca,temp_entrada,temp_saida,"
+                "data_embalamento,produtor,"
                 "foto_temp_entrada,foto_espelho,foto_pallet_entrada,foto_temp_saida,created_at,updated_at")
         .eq("sessao_id", sessao_id)
         .order("boca")
@@ -632,18 +645,13 @@ def relatorio_sessao(sessao_id: str) -> dict:
     temp_media_saida = round(sum(temps_saida) / len(temps_saida), 1) if temps_saida else None
 
     tempo_operacao = None
-    if sessao.get("iniciado_em") and sessao.get("finalizado_em"):
-        try:
-            fmt = "%Y-%m-%dT%H:%M:%S.%f" if "." in sessao["iniciado_em"] else "%Y-%m-%dT%H:%M:%S"
-            t0 = datetime.strptime(sessao["iniciado_em"][:26], fmt[:len(fmt)])
-            fmt2 = "%Y-%m-%dT%H:%M:%S.%f" if "." in sessao["finalizado_em"] else "%Y-%m-%dT%H:%M:%S"
-            t1 = datetime.strptime(sessao["finalizado_em"][:26], fmt2[:len(fmt2)])
-            diff = int((t1 - t0).total_seconds())
-            h, rem = divmod(diff, 3600)
-            m, s = divmod(rem, 60)
-            tempo_operacao = f"{h:02d}:{m:02d}:{s:02d}"
-        except Exception:
-            pass
+    t0 = _parse_ts(sessao.get("iniciado_em"))
+    t1 = _parse_ts(sessao.get("finalizado_em"))
+    if t0 and t1 and t1 > t0:
+        diff = int((t1 - t0).total_seconds())
+        h, rem = divmod(diff, 3600)
+        m, s = divmod(rem, 60)
+        tempo_operacao = f"{h:02d}:{m:02d}:{s:02d}"
 
     return {
         "sessao": sessao,

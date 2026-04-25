@@ -559,129 +559,243 @@ tr:hover td { background: var(--surface2); }
   #relatorio-pdf {
     display: block;
     font-family: 'Inter', Arial, sans-serif;
-    color: #0f172a;
     background: #fff;
-    padding: 0;
-    margin: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
 
-.rel-page {
-  width: 210mm;
-  padding: 12mm 14mm;
-  page-break-after: always;
+/* Doc wrapper */
+.rel-doc {
+  font-family: 'Inter', Arial, sans-serif;
+  color: #1a2d4f;
+  max-width: 210mm;
+  margin: 0 auto;
 }
 
-.rel-page:last-child { page-break-after: auto; }
-
-.rel-header {
+/* ── Cabeçalho da sessão ── */
+.rel-session-hdr {
+  background: #1a3a5c;
+  color: #fff;
+  padding: 12px 16px;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  border-bottom: 2px solid #0f172a;
-  padding-bottom: 6px;
-  margin-bottom: 10px;
+  align-items: center;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
-.rel-header h1 { font-size: 1rem; font-weight: 700; margin: 0; }
-.rel-header p  { font-size: .72rem; color: #64748b; margin: 2px 0 0; }
-.rel-header .rel-logo { font-size: 1.3rem; font-weight: 800; color: #6366f1; }
-
-.rel-pallet-header {
-  background: #f1f5f9;
-  border-radius: 4px;
-  padding: 6px 10px;
-  margin-bottom: 8px;
+.rel-logo-wrap {
   display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 
-.rel-pallet-header strong { font-size: .8rem; }
-.rel-pallet-header span   { font-size: .75rem; color: #475569; }
+.rel-logo-wrap svg { width: 40px; height: auto; flex-shrink: 0; }
 
-.rel-operators {
+.rel-logo-text .t1 {
+  font-size: .88rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+.rel-logo-text .t2 {
+  font-size: .68rem;
+  opacity: .75;
+  margin-top: 2px;
+}
+
+.rel-session-meta {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 8px;
+  gap: 3px 24px;
+  text-align: right;
 }
 
-.rel-op-box {
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  padding: 5px 8px;
-  font-size: .72rem;
+.rel-session-meta .lbl {
+  font-size: .52rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  opacity: .6;
 }
 
-.rel-op-box .label { color: #64748b; margin-bottom: 2px; }
-.rel-op-box .value { font-weight: 600; }
+.rel-session-meta .val {
+  font-size: .7rem;
+  font-weight: 600;
+}
 
-.rel-metrics {
+/* ── Barra de estatísticas ── */
+.rel-stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  margin-bottom: 10px;
+  grid-template-columns: repeat(6, 1fr);
+  border: 1px solid #dde3ea;
+  border-top: none;
+  margin-bottom: 14px;
 }
 
-.rel-metric {
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  padding: 6px 8px;
+.rel-stat-box {
+  padding: 7px 6px;
+  border-right: 1px solid #dde3ea;
   text-align: center;
 }
 
-.rel-metric .label { font-size: .65rem; color: #64748b; text-transform: uppercase; }
-.rel-metric .value { font-size: 1.1rem; font-weight: 700; color: #0f172a; }
+.rel-stat-box:last-child { border-right: none; }
 
+.rel-stat-box .lbl {
+  font-size: .5rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #64748b;
+  margin-bottom: 3px;
+}
+
+.rel-stat-box .val {
+  font-size: .85rem;
+  font-weight: 700;
+  color: #1a3a5c;
+}
+
+/* ── Bloco de pallet ── */
+.rel-pallet {
+  border: 1px solid #dde3ea;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.rel-pallet-hdr {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #dde3ea;
+  background: #f1f5f9;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.rel-pallet-id {
+  font-size: .98rem;
+  font-weight: 700;
+  color: #1a3a5c;
+}
+
+.rel-pallet-desc {
+  font-size: .7rem;
+  color: #475569;
+}
+
+.rel-pallet-ops {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 18px;
+  text-align: right;
+}
+
+.rel-pallet-ops .lbl {
+  font-size: .5rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #94a3b8;
+}
+
+.rel-pallet-ops .val {
+  font-size: .66rem;
+  font-weight: 600;
+  color: #1a3a5c;
+}
+
+/* ── Métricas ── */
+.rel-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid #dde3ea;
+}
+
+.rel-metric {
+  padding: 8px;
+  border-right: 1px solid #dde3ea;
+  text-align: center;
+}
+
+.rel-metric:last-child { border-right: none; }
+
+.rel-metric .lbl {
+  font-size: .52rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.rel-metric .val {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1a3a5c;
+}
+
+/* ── Fotos ── */
 .rel-fotos {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
 }
 
-.rel-foto-box {
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  overflow: hidden;
+.rel-foto-col {
+  border-right: 1px solid #dde3ea;
+  display: flex;
+  flex-direction: column;
 }
 
-.rel-foto-box .foto-label {
-  background: #f8fafc;
-  font-size: .65rem;
-  font-weight: 600;
+.rel-foto-col:last-child { border-right: none; }
+
+.rel-foto-lbl {
+  padding: 4px 6px;
+  font-size: .52rem;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: .04em;
   color: #475569;
-  padding: 3px 6px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.rel-foto-box img {
-  width: 100%;
-  aspect-ratio: 4/3;
-  object-fit: contain;
+  border-bottom: 1px solid #dde3ea;
   background: #f8fafc;
-  display: block;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
-.rel-foto-box .sem-foto {
-  width: 100%;
+.rel-foto-img {
   aspect-ratio: 4/3;
+  background: #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: .7rem;
-  color: #94a3b8;
-  background: #f8fafc;
+  overflow: hidden;
 }
 
-.rel-footer {
-  margin-top: 10px;
-  border-top: 1px solid #e2e8f0;
-  padding-top: 6px;
-  display: flex;
-  justify-content: space-between;
-  font-size: .68rem;
+.rel-foto-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.rel-foto-img .sem-img {
+  font-size: .62rem;
+  color: #94a3b8;
+  text-align: center;
+  padding: 8px;
+}
+
+.rel-foto-caption {
+  padding: 3px 6px;
+  font-size: .54rem;
   color: #64748b;
+  border-top: 1px solid #dde3ea;
+  background: #f8fafc;
+  line-height: 1.35;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
