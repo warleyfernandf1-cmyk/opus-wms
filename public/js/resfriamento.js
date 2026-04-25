@@ -193,7 +193,7 @@ async function uploadFotoSaida(file) {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('tipo', 'saida');
-    const token = localStorage.getItem('opus_token');
+    const token = sessionStorage.getItem('token');
     const resp = await fetch('/api/upload/foto', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },

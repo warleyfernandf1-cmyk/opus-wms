@@ -501,7 +501,7 @@ async function uploadFoto(file, tipo, key, previewId, statusId) {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('tipo', tipo);
-    const token = localStorage.getItem('opus_token');
+    const token = sessionStorage.getItem('token');
     const resp = await fetch('/api/upload/foto', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
