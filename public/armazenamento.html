@@ -120,28 +120,69 @@
       font-size:.8rem; color:var(--text-muted); cursor:pointer; }
     .modal-validacao-msg { font-size:.78rem; font-weight:500; }
 
-    /* PDF */
+    /* ── PDF / Impressão ── */
     @media print {
       body > *:not(#pdf-apoio) { display:none !important; }
       #pdf-apoio { display:block !important; }
+      .pdf-page { page-break-after:always; }
+      .pdf-page:last-child { page-break-after:auto; }
     }
-    #pdf-apoio { display:none; font-family:Arial,sans-serif; color:#000; padding:32px; }
+    #pdf-apoio { display:none; font-family:Arial,sans-serif; color:#1a1a1a; }
+    .pdf-page { padding:20px 26px; box-sizing:border-box; }
+    /* Cabeçalho */
     .pdf-header { display:flex; justify-content:space-between; align-items:flex-start;
-      border-bottom:2px solid #000; padding-bottom:12px; margin-bottom:16px; }
-    .pdf-logo { font-size:1.4rem; font-weight:700; }
-    .pdf-logo span { font-size:.85rem; font-weight:400; display:block; }
-    .pdf-title { font-size:1.1rem; font-weight:700; text-align:center; margin-bottom:16px; }
-    .pdf-meta { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px; font-size:.85rem; }
-    .pdf-meta-item { display:flex; flex-direction:column; gap:2px; }
-    .pdf-meta-label { font-size:.72rem; text-transform:uppercase; color:#666; }
-    .pdf-meta-value { font-weight:600; }
-    .pdf-table { width:100%; border-collapse:collapse; font-size:.82rem; margin-bottom:24px; }
-    .pdf-table th { background:#f0f0f0; padding:7px 10px; text-align:left;
-      border:1px solid #ccc; font-size:.72rem; text-transform:uppercase; }
-    .pdf-table td { padding:7px 10px; border:1px solid #ccc; }
-    .pdf-table tr:nth-child(even) td { background:#fafafa; }
-    .pdf-footer { display:grid; grid-template-columns:1fr 1fr; gap:32px; margin-top:32px; }
-    .pdf-assinatura { border-top:1px solid #000; padding-top:6px; font-size:.78rem; text-align:center; }
+      border-bottom:2px solid #1a1a1a; padding-bottom:10px; margin-bottom:14px; }
+    .pdf-logo { font-size:1.25rem; font-weight:700; line-height:1.2; }
+    .pdf-logo span { font-size:.74rem; font-weight:400; color:#555; display:block; }
+    /* Título do documento */
+    .pdf-doc-title { font-size:.9rem; font-weight:700; text-transform:uppercase;
+      letter-spacing:.12em; text-align:center; border-bottom:1px solid #999;
+      padding-bottom:8px; margin-bottom:14px; }
+    /* Resumo de totais */
+    .pdf-summary { display:flex; gap:14px; margin-bottom:16px; }
+    .pdf-summary-box { flex:1; text-align:center; border:1px solid #ccc;
+      border-radius:4px; padding:10px 6px; }
+    .pdf-summary-label { font-size:.58rem; text-transform:uppercase; color:#666;
+      letter-spacing:.08em; margin-bottom:3px; }
+    .pdf-summary-value { font-size:1.5rem; font-weight:700; }
+    /* Subtítulo de seção */
+    .pdf-section-title { font-size:.62rem; font-weight:700; text-transform:uppercase;
+      letter-spacing:.1em; color:#444; border-bottom:1px solid #ccc;
+      padding-bottom:4px; margin-bottom:8px; }
+    /* Tabela de rateio */
+    .pdf-table { width:100%; border-collapse:collapse; font-size:.68rem; margin-bottom:18px; }
+    .pdf-table th { background:#1a1a1a; color:#fff; padding:5px 5px; text-align:left;
+      font-size:.56rem; text-transform:uppercase; letter-spacing:.04em;
+      border:1px solid #333; white-space:nowrap; }
+    .pdf-table td { padding:4px 5px; border:1px solid #ccc; vertical-align:middle; }
+    .pdf-table tr:nth-child(even) td { background:#f7f7f7; }
+    .pdf-table .td-destino { font-weight:700; color:#3730a3; }
+    .pdf-table tfoot td { background:#f0f0f0; font-weight:700; font-size:.62rem; color:#333; }
+    /* Assinaturas */
+    .pdf-footer-sign { display:grid; grid-template-columns:1fr 1fr; gap:40px; margin-top:28px; }
+    .pdf-assinatura { border-top:1px solid #555; padding-top:5px;
+      font-size:.72rem; text-align:center; color:#555; }
+    /* Legenda do mapa */
+    .pdf-legend { display:flex; gap:20px; align-items:center;
+      margin-bottom:14px; font-size:.72rem; }
+    .pdf-legend-item { display:flex; align-items:center; gap:6px; }
+    .pdf-legend-box { width:14px; height:14px; border-radius:2px; }
+    .pdf-legend-destino { background:#4f46e5; border:1px solid #3730a3; }
+    .pdf-legend-vazio  { background:#f5f5f5; border:1px solid #ccc; }
+    /* Mapa de câmaras */
+    .pdf-map-section { margin-bottom:22px; }
+    .pdf-map-cam-title { font-size:.75rem; font-weight:700; text-transform:uppercase;
+      letter-spacing:.08em; background:#1a1a1a; color:#fff; padding:4px 8px; }
+    .pdf-map-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    .pdf-map-table th { background:#e8e8e8; border:1px solid #bbb; padding:3px 2px;
+      text-align:center; font-size:.52rem; font-weight:700; }
+    .pdf-map-table th.row-lbl { background:#f0f0f0; width:28px; font-size:.55rem; }
+    .pdf-map-table td { border:1px solid #ddd; padding:3px 2px;
+      text-align:center; font-size:.52rem; height:17px; }
+    .pdf-map-table td.co-gap { background:#d8d8d8; }
+    .pdf-map-table td.co-num { background:#f0f0f0; font-weight:600; color:#555; }
+    .pdf-map-table td.map-destino { background:#4f46e5; color:#fff;
+      font-weight:700; border-color:#3730a3; }
   </style>
 </head>
 <body>
@@ -311,36 +352,8 @@
   </div>
 </div>
 
-<!-- PDF de Apoio (visível apenas na impressão) -->
-<div id="pdf-apoio">
-  <div class="pdf-header">
-    <div class="pdf-logo">Opus WMS <span>Warehouse Management System</span></div>
-    <div style="text-align:right;font-size:.78rem">
-      <div id="pdf-data"></div>
-      <div id="pdf-oa-id" style="font-weight:700;font-size:1rem;margin-top:4px"></div>
-    </div>
-  </div>
-  <div class="pdf-title">RELATÓRIO DE APOIO — ORDEM DE ARMAZENAMENTO</div>
-  <div class="pdf-meta">
-    <div class="pdf-meta-item"><span class="pdf-meta-label">ID da Ordem</span><span class="pdf-meta-value" id="pdf-id"></span></div>
-    <div class="pdf-meta-item"><span class="pdf-meta-label">Status</span><span class="pdf-meta-value" id="pdf-status"></span></div>
-    <div class="pdf-meta-item"><span class="pdf-meta-label">Data / Hora</span><span class="pdf-meta-value" id="pdf-criada"></span></div>
-    <div class="pdf-meta-item"><span class="pdf-meta-label">Total de Pallets</span><span class="pdf-meta-value" id="pdf-total"></span></div>
-  </div>
-  <table class="pdf-table">
-    <thead>
-      <tr><th>#</th><th>ID Pallet</th><th>Câmara</th><th>Rua</th><th>Posição</th><th>Temp. Polpa</th><th>Conferido</th></tr>
-    </thead>
-    <tbody id="pdf-tbody"></tbody>
-  </table>
-  <div class="pdf-footer">
-    <div class="pdf-assinatura">Operador Responsável</div>
-    <div class="pdf-assinatura">Supervisor / Conferente</div>
-  </div>
-  <div style="font-size:.7rem;color:#999;text-align:center;margin-top:24px">
-    Documento gerado automaticamente pelo Opus WMS · <span id="pdf-rodape-data"></span>
-  </div>
-</div>
+<!-- PDF de Apoio (visível apenas na impressão — preenchido dinamicamente pelo JS) -->
+<div id="pdf-apoio"></div>
 
 <script src="js/api.js"></script>
 <script src="js/armazenamento.js"></script>

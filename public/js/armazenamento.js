@@ -245,37 +245,173 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* ─── PDF de apoio ───────────────────────────────────────────── */
 
+// Posições do corredor que são gap (porta), por câmara — DB posicao sequencial
+const _OA_GAPS = { '01': new Set([7, 8]), '02': new Set([1, 2]) };
+const _MAP_RUAS = 13;
+const _MAP_POS  = 6;
+
+function _corEffPos(camId) {
+  // Array[_MAP_RUAS]: null = gap, número = posição efetiva (R01=1, da direita)
+  const gaps = _OA_GAPS[camId] || new Set();
+  const res = new Array(_MAP_RUAS).fill(null);
+  let eff = 0;
+  for (let c = _MAP_RUAS - 1; c >= 0; c--) {
+    if (!gaps.has(c + 1)) { eff++; res[c] = eff; }
+  }
+  return res;
+}
+
 async function imprimirRelatorio(oaId) {
   try {
     const oas = await api.get('/resfriamento/oas');
-    const oa = oas.find(o => o.id === oaId);
+    const oa  = oas.find(o => o.id === oaId);
     if (!oa) { showToast('OA não encontrada', 'error'); return; }
 
-    const pallets = oa.pallets_detalhes || [];
-    const destinos = (oa.dados || {}).destinos || [];
-    const now = new Date().toLocaleString('pt-BR');
+    const pallets     = oa.pallets_detalhes || [];
+    const destinos    = (oa.dados || {}).destinos || [];
+    const criada      = oa.criada_em ? new Date(oa.criada_em).toLocaleString('pt-BR') : '—';
+    const totalCaixas = pallets.reduce((s, p) => s + (p.qtd_caixas || 0), 0);
 
-    document.getElementById('pdf-oa-id').textContent = oaId;
-    document.getElementById('pdf-data').textContent = now;
-    document.getElementById('pdf-id').textContent = oaId;
-    document.getElementById('pdf-status').textContent = (oa.status || '—').toUpperCase();
-    document.getElementById('pdf-criada').textContent = oa.criada_em
-      ? new Date(oa.criada_em).toLocaleString('pt-BR') : '—';
-    document.getElementById('pdf-total').textContent = pallets.length;
-    document.getElementById('pdf-rodape-data').textContent = now;
+    // Mapa rápido: "camara-rua-posicao" → pallet_id
+    const destMap = {};
+    for (const d of destinos) destMap[`${d.camara}-${d.rua}-${d.posicao}`] = d.pallet_id;
 
-    document.getElementById('pdf-tbody').innerHTML = pallets.map((p, i) => {
-      const dest = destinos.find(d => d.pallet_id === p.id);
+    // Câmaras com pelo menos um destino nesta OA
+    const camaras = [...new Set(destinos.map(d => d.camara))].sort();
+
+    // ── Página 1: Rateio ─────────────────────────────────────────
+    const rateioRows = pallets.map((p, i) => {
+      const dest    = destinos.find(d => d.pallet_id === p.id);
+      const origem  = `T${p.tunel || '?'} - B${p.boca || '?'}`;
+      const destLbl = dest
+        ? `CF${dest.camara} - R${String(dest.rua).padStart(2,'0')} - P${String(dest.posicao).padStart(2,'0')}`
+        : '—';
       return `<tr>
         <td>${i + 1}</td>
         <td><strong>${p.id}</strong></td>
-        <td>${dest?.camara || '—'}</td>
-        <td>${dest?.rua || '—'}</td>
-        <td>${dest?.posicao || '—'}</td>
-        <td>${p.temp_saida != null ? p.temp_saida + '°C' : '—'}</td>
-        <td style="text-align:center">□</td>
+        <td>${p.variedade     || '—'}</td>
+        <td>${p.classificacao || '—'}</td>
+        <td>${p.embalagem     || '—'}</td>
+        <td>${p.produtor      || '—'}</td>
+        <td>${p.qtd_caixas    || '—'}</td>
+        <td>${p.area          || '—'}</td>
+        <td>${p.mercado       || '—'}</td>
+        <td>${origem}</td>
+        <td class="td-destino">${destLbl}</td>
       </tr>`;
     }).join('');
+
+    // ── Página 2: Mapa de câmaras ─────────────────────────────────
+    const mapasHtml = camaras.map(cam => {
+      const eff = _corEffPos(cam);
+
+      // Cabeçalho das ruas (R13 → R01)
+      const headCols = Array.from({length: _MAP_RUAS}, (_, c) =>
+        `<th>R${String(_MAP_RUAS - c).padStart(2,'0')}</th>`
+      ).join('');
+
+      // Linha do corredor
+      const coRow = `<tr>
+        <th class="row-lbl" style="color:#b45309">CO</th>
+        ${eff.map(ep => ep !== null
+          ? `<td class="co-num">${String(ep).padStart(2,'0')}</td>`
+          : `<td class="co-gap"></td>`
+        ).join('')}
+      </tr>`;
+
+      // Linhas P01–P06
+      const posRows = Array.from({length: _MAP_POS}, (_, pi) => {
+        const pos = pi + 1;
+        const cells = Array.from({length: _MAP_RUAS}, (_, c) => {
+          const rua = _MAP_RUAS - c;
+          const pid = destMap[`${cam}-${rua}-${pos}`];
+          return pid
+            ? `<td class="map-destino">${pid}</td>`
+            : `<td></td>`;
+        }).join('');
+        return `<tr><th class="row-lbl">P${String(pos).padStart(2,'0')}</th>${cells}</tr>`;
+      }).join('');
+
+      return `<div class="pdf-map-section">
+        <div class="pdf-map-cam-title">CÂMARA ${cam}</div>
+        <table class="pdf-map-table">
+          <thead><tr><th class="row-lbl"></th>${headCols}</tr></thead>
+          <tbody>${coRow}${posRows}</tbody>
+        </table>
+      </div>`;
+    }).join('');
+
+    // ── Montar HTML completo ──────────────────────────────────────
+    document.getElementById('pdf-apoio').innerHTML = `
+      <div class="pdf-page">
+        <div class="pdf-header">
+          <div class="pdf-logo">Opus WMS<span>Warehouse Management</span></div>
+          <div style="text-align:right;line-height:1.6">
+            <div style="font-size:.7rem;color:#666">${criada}</div>
+            <div style="font-size:1rem;font-weight:700">${oaId}</div>
+          </div>
+        </div>
+        <div class="pdf-doc-title">ORDEM DE ARMAZENAMENTO</div>
+        <div class="pdf-summary">
+          <div class="pdf-summary-box">
+            <div class="pdf-summary-label">TOTAL DE PALLETS</div>
+            <div class="pdf-summary-value">${pallets.length}</div>
+          </div>
+          <div class="pdf-summary-box">
+            <div class="pdf-summary-label">TOTAL DE CAIXAS</div>
+            <div class="pdf-summary-value">${totalCaixas}</div>
+          </div>
+        </div>
+        <div class="pdf-section-title">RATEIO DOS PALLETS</div>
+        <table class="pdf-table">
+          <thead>
+            <tr>
+              <th>Nº</th><th>PALLET</th><th>VARIEDADE</th><th>CLASSIF.</th>
+              <th>EMBALAGEM</th><th>PRODUTOR</th><th>CAIXAS</th>
+              <th>ÁREA</th><th>MERCADO</th><th>POS. ORIGEM</th><th>POS. DESTINO</th>
+            </tr>
+          </thead>
+          <tbody>${rateioRows}</tbody>
+          <tfoot>
+            <tr>
+              <td colspan="6" style="text-align:right;font-size:.58rem;letter-spacing:.05em">TOTAL</td>
+              <td>${totalCaixas}</td>
+              <td colspan="4"></td>
+            </tr>
+          </tfoot>
+        </table>
+        <div style="font-size:.62rem;color:#666;margin-bottom:14px">
+          Total Pallets: <strong>${pallets.length}</strong> &nbsp;&nbsp; Total Caixas: <strong>${totalCaixas}</strong>
+        </div>
+        <div class="pdf-footer-sign">
+          <div class="pdf-assinatura">Separador / Operador</div>
+          <div class="pdf-assinatura">Responsável</div>
+        </div>
+      </div>
+
+      <div class="pdf-page">
+        <div class="pdf-header">
+          <div class="pdf-logo">Opus WMS<span>Warehouse Management</span></div>
+          <div style="text-align:right;line-height:1.6">
+            <div style="font-size:.7rem;color:#666">${criada}</div>
+            <div style="font-size:.7rem;color:#666">${oaId}</div>
+          </div>
+        </div>
+        <div class="pdf-doc-title">MAPA DE CÂMARAS</div>
+        <div style="font-size:.72rem;color:#666;margin-bottom:12px">${oaId}</div>
+        <div class="pdf-legend">
+          <div class="pdf-legend-item">
+            <div class="pdf-legend-box pdf-legend-destino"></div>
+            <span>Posição de Destino (Armazenamento)</span>
+          </div>
+          <div class="pdf-legend-item">
+            <div class="pdf-legend-box pdf-legend-vazio"></div>
+            <span>Vazio</span>
+          </div>
+        </div>
+        ${mapasHtml || '<p style="color:#999;font-size:.8rem">Nenhum destino definido para esta OA.</p>'}
+      </div>
+    `;
 
     window.print();
   } catch (e) {
@@ -577,6 +713,7 @@ async function confirmarCriarOA() {
     fecharModalDireto();
     await renderOAs();
     await renderAguardandoOA();
+    await imprimirRelatorio(result.oa_id);
   } catch (e) {
     showToast(e.message, 'error');
   }
