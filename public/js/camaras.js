@@ -65,8 +65,11 @@ function showTooltip(e, cell) {
     html = `<span style="color:var(--muted);font-size:.75rem">⬛ Porta / Gap</span>`;
 
   } else if (!cell.pallet_id) {
+    const posLivre = cell.tipo === 'corredor' && cell._effectivePos
+      ? `Corredor P${String(cell._effectivePos).padStart(2, '0')}`
+      : cell.id;
     html = `
-      <div style="color:var(--muted);font-size:.7rem;margin-bottom:3px">${cell.id}</div>
+      <div style="color:var(--muted);font-size:.7rem;margin-bottom:3px">${posLivre}</div>
       <div style="color:var(--success);font-size:.8rem">● Livre</div>`;
 
   } else {
@@ -74,9 +77,12 @@ function showTooltip(e, cell) {
     const corBadge = isCor ? `<span style="font-size:.68rem;color:var(--warning)"> · Corredor</span>` : '';
     const statusCor = cell.status === 'ocupada' ? 'var(--accent)' : 'var(--warning)';
     const statusLbl = cell.status === 'ocupada' ? 'Ocupada'       : 'Reservada';
+    const posOcup  = isCor && cell._effectivePos
+      ? `C${cell.camara}-COR-P${String(cell._effectivePos).padStart(2, '0')}`
+      : cell.id;
 
     html = `
-      <div style="color:var(--muted);font-size:.68rem;margin-bottom:5px">${cell.id}${corBadge}</div>
+      <div style="color:var(--muted);font-size:.68rem;margin-bottom:5px">${posOcup}${corBadge}</div>
       <div style="font-weight:700;font-size:.9rem;color:var(--text);margin-bottom:3px">
         Pallet #${cell.pallet_id}
       </div>
@@ -354,12 +360,13 @@ async function renderCamara(id) {
     corLbl.innerHTML = `<span>C0</span><span class="camv2-cor-sub">${corAtivos}P</span>`;
     grid.appendChild(corLbl);
 
+    let corRealPos = 0;
     for (let c = 0; c < numCols; c++) {
       const corPos = c + 1;
-      const rua    = numCols - c;
       const cell   = corSeq[corPos] || null;
 
       if (cell) {
+        if (!cell.is_gap) { corRealPos++; cell._effectivePos = corRealPos; }
         grid.appendChild(buildCell(cell));
       } else {
         grid.appendChild(_placeholder());
