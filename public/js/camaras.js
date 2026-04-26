@@ -360,13 +360,18 @@ async function renderCamara(id) {
     corLbl.innerHTML = `<span>C0</span><span class="camv2-cor-sub">${corAtivos}P</span>`;
     grid.appendChild(corLbl);
 
+    // Pré-passo direita→esquerda (R01=P01) para atribuir effectivePos
     let corRealPos = 0;
+    for (let c = numCols - 1; c >= 0; c--) {
+      const cell = corSeq[c + 1] || null;
+      if (cell && !cell.is_gap) { corRealPos++; cell._effectivePos = corRealPos; }
+    }
+
     for (let c = 0; c < numCols; c++) {
       const corPos = c + 1;
       const cell   = corSeq[corPos] || null;
 
       if (cell) {
-        if (!cell.is_gap) { corRealPos++; cell._effectivePos = corRealPos; }
         grid.appendChild(buildCell(cell));
       } else {
         grid.appendChild(_placeholder());
