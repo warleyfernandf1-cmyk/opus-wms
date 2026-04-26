@@ -7,8 +7,8 @@ router = APIRouter()
 # Câmara 01: gap no corredor posições 7 e 8 (Porta)
 # Câmara 02: gap no corredor posições 12 e 13 (Porta)
 GAPS = {
-    "01": {7, 8},
-    "02": {12, 13},
+    "01": {7, 8},   # posições sequenciais do corredor = colunas R07 e R06
+    "02": {1, 2},   # posições sequenciais do corredor = colunas R13 e R12 (porta)
 }
 
 

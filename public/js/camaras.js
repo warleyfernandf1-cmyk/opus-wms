@@ -269,8 +269,6 @@ function buildCell(cell) {
       _dragEl   = null;
     });
 
-  } else if (isCor && cell._ruaLabel) {
-    div.innerHTML = `<span class="pcv2-rua-num">${cell._ruaLabel}</span>`;
   }
 
   // ── Drop zone — células livres ──
@@ -362,7 +360,6 @@ async function renderCamara(id) {
       const cell   = corSeq[corPos] || null;
 
       if (cell) {
-        cell._ruaLabel = String(rua).padStart(2, '0');
         grid.appendChild(buildCell(cell));
       } else {
         grid.appendChild(_placeholder());
