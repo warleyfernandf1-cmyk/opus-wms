@@ -350,9 +350,10 @@ async function renderCamara(id) {
     }
 
     // ── Linha 1: corredor ─────────────────────────────────────────────────────
+    const corAtivos = Object.values(corSeq).filter(c => !c.is_gap).length;
     const corLbl = document.createElement('div');
     corLbl.className = 'camv2-row-label camv2-cor-label';
-    corLbl.innerHTML = `<span>C0</span><span class="camv2-cor-sub">${numCols}P</span>`;
+    corLbl.innerHTML = `<span>C0</span><span class="camv2-cor-sub">${corAtivos}P</span>`;
     grid.appendChild(corLbl);
 
     for (let c = 0; c < numCols; c++) {
